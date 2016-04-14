@@ -21,17 +21,17 @@ parse_diego_data <- function(type) {
     
     # Load data
     annotation_file <- ifelse(type == "train", 
-                              "../download_tweets/train_tweet_annotations.tsv",
+                              "../data/download_tweets/train_tweet_annotations.tsv",
                        ifelse(type == "test",
-                              "../download_tweets/test_tweet_annotations.tsv",
+                              "../data/download_tweets/test_tweet_annotations.tsv",
                               stop("type should be either 'train' or 'test'"
                                     ))
                        )
     
     tweets_file <- ifelse(type == "train",
-                          "../download_tweets/full_train_tweet_ids.tsv",
+                          "../data/download_tweets/full_train_tweet_ids.tsv",
                    ifelse(type == "test",
-                          "../download_tweets/full_test_tweet_ids.tsv",
+                          "../data/download_tweets/full_test_tweet_ids.tsv",
                           stop("type should be either 'train' or 'test'"))
                    )
     
