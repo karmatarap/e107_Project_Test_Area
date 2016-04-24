@@ -276,3 +276,76 @@ fit_rf
 varImp(fit_rf)
 ```
 
+
+The area under curve is slightly below 90%. 
+
+# Recent data
+
+The next step consists in checking whether we can reproduce these results with recently collected twitter data.
+
+```{r}
+parse_new_tweets <- function() {
+    # Prepares new tweets into a form that is suitable for being fed
+    # into the classifiers
+    #
+    # Args: None
+    #
+    # Returns: data frame
+    load("../data/download_tweets/datacollection.RData")
+    tweets_text <- map_chr(tweets, ~.$text)
+    
+    # Remove drugs from text
+    drugs <- read_lines("../data/download_tweets/drug_names.txt", skip = 6)
+    drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
+    
+    tweets_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+
+    tweets_text
+}
+
+new_tweets <- parse_new_tweets()
+```
+
+In order for the following code chunk to work, the [linked hack](https://groups.google.com/forum/embed/#!topic/rtexttools-help/Drqr3Z897Mk) has to be performed. Furthermore, we have to change the encoding to UTF-8.
+
+```{r}
+source("../r/helper_functions/create_matrix_fixed.R")
+n_new_tweets <- 200
+new_tweets_dtm <- 
+    create_matrix(new_tweets %>% head(n = n_new_tweets),
+                  originalMatrix = doc_matrix,
+                  language = "english",
+                  removeNumbers = TRUE,
+                  removePunctuation = TRUE,
+                  toLower = TRUE,
+                  stemWords = TRUE,
+                  stripWhitespace = TRUE,
+                  ngramLength = 1,
+                  minDocFreq = 1,
+                  weighting = tm::weightTf)
+```
+
+
+```{r}
+new_container <- create_container(new_tweets_dtm,
+                                  labels = c(data[[1]]$is_AE, data[[2]]$is_AE),
+                                  trainSize = NULL,
+                                  testSize = 1:n_new_tweets,
+                                  virgin = TRUE
+                                  )
+```
+
+```{r}
+preds_new <- classify_models(new_container, fit_models)
+preds_new_final <- predict(fit_rf, preds_new, type = "prob")
+```
+
+Now we show the ten tweets for which the model predicts the highest probability of having an AE:
+
+```{r}
+order(preds_new_final[, 2], decreasing = TRUE) %>%
+    head(n = 10) %>% 
+    map_chr(~new_tweets[.])
+```
+
+We see that the results do not look terribly good...
