@@ -66,9 +66,22 @@ parse_diego_data <- function(type) {
                tweet_text = V4
         )
     
-    # Join the two together
+    # Read in the ADR lexicon and rename
+    adr_lexicon <- read_tsv("../data/download_tweets/ADR_lexicon.tsv",
+                            skip = 21, 
+                            col_names = FALSE) %>% 
+        rename(concept_id = X1,
+               concept_name = X2,
+               source = X3)
+    
+    # Join tweets and annotations
     result <- 
         suppressWarnings(left_join(tweets, annotations, by = "text_id"))
+    
+    # Join result with ADR lexicon
+    result <- left_join(result, 
+                        adr_lexicon,
+                        by = c("annotated_text" = "concept_name"))
     
     result
     

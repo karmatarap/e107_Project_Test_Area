@@ -1,0 +1,278 @@
+---
+title: "Predict ADR"
+author: "Alexander Noll"
+date: "21 April 2016"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# This package and the corresponding command makes sure, we all use the same
+# versions of the packages
+library(checkpoint)
+checkpoint("2016-04-01")
+
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(magrittr)
+library(pROC)
+library(purrr)
+library(RColorBrewer)
+library(RTextTools)
+library(readr)
+library(stringr)
+library(tidyr)
+library(tm)
+library(wordcloud)
+
+theme_set(theme_economist_white())
+
+source("../r/helper_functions/parse_diego_data.R")
+source("../r/helper_functions/parse-binary_data.R")
+```
+
+# Question
+
+The question we ask here is the following:
+
+> If we train a model for predicting adverse drug reaction from Twitter data generated in 2013, are the results still valid nowadays?
+
+This question is of critical importance to the research program initiated by the papers mentioned in our text: if the language in social media changes so drastically over few years that models trained on old data are not valid anymore, this means that experts have to annotate quite large amounts of tweets on a regular basis to have valid training samples.
+
+A more refined version of the question above is:
+
+> Are the quantitative measures "precision", "recall", "F-score" and "auc" when the model is evaluated on recent data significantly lower than on the validation set used in the original studies?
+
+A quantitative way of evaluating this question is to train several models on the older dataset and compare the various scores.
+
+# Data
+
+The next step is to process the data. We wrote helper functions (`parse_diego_data` and `parse_binary_data`) that read in the data and return tidy data, i.e. one observation (tweet) per row. The dataset containing detailed annotations comes already split into two pieces. 
+
+```{r 03_read_data, warning = FALSE}
+tidy_data <- function() {
+    # Prepares two tidy datasets: training set and test set
+    #
+    # Args: None
+    #
+    # Returns: list whose first entry is the training set and whose second
+    #          entry is the test set
+    
+    # Read dataset that is annotated in detail
+    train_data_annotated <- 
+        parse_diego_data("train") %>%
+        mutate(is_AE = as.factor(ifelse(!is.na(start_offset), "Yes", "No")))
+    
+    test_data_annotated <-
+        parse_diego_data("test") %>%
+        mutate(is_AE = as.factor(ifelse(!is.na(start_offset), "Yes", "No")))
+    
+    # Read binary annotated dataset
+    binary_data <- parse_binary_data()
+    binary_train_ind <- createDataPartition(binary_data$is_AE, p = 0.75, list = FALSE)
+    
+    # Bind two sets
+    train_data <-
+        bind_rows(train_data_annotated,
+                  binary_data %>% slice(binary_train_ind)
+                  ) %>% 
+        select(tweet_id, user_id, tweet_text, is_AE)
+    
+    test_data <- 
+        bind_rows(test_data_annotated,
+                  binary_data %>% slice(-binary_train_ind)
+                  )  %>% 
+        select(tweet_id, user_id, tweet_text, is_AE)
+    
+    train_data$is_AE %<>% as.factor
+    test_data$is_AE %<>% as.factor
+        
+    # Remove drugs from text
+    drugs <- read_lines("../data/download_tweets/drug_names.txt", skip = 6)
+    drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
+    
+    train_data$tweet_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    test_data$tweet_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    
+    list(train = train_data, test = test_data)
+
+
+}
+
+data <- tidy_data()
+```
+
+The dataset consists at this stage of the following four features:
+
+Column name      |  Description
+-----------------|-------------
+tweet_id         | Unique identifier of the tweet
+user_id          | Unique identifier of the user posting the tweet
+tweet_text       | Actual tweet text
+is_AE            | Is the tweet related to an adverse event
+
+The tweet texts have not been cleaned in any way at this stage.
+
+# Exploratory data analysis
+
+Let us first do exploratory data analysis on the tweets. One very popular method for this is to use **wordclouds**. We first produce two wordclouds: one (in black) with tweets not related to an AE and one (in green) related to adverse events. We see that there are interesting differences between the two wordclouds.
+
++ The right one contains many more "negative" words and words that are obviously related to not feeling good
++ The left wordcloud contains many neutral words, but also many negative words. These negative words, however are not related to an adverse event (consider, e.g. the phrase "depression hurts cymbalta can help")
+
+```{r 03_wordcloud_overall, warning = FALSE}
+pal <- brewer.pal(8, "Spectral")
+
+par(mfrow = c(1, 2))
+wordcloud(data[["train"]] %>% filter(is_AE == "No") %$% tweet_text, 
+          min.freq = 20,
+          random.color = TRUE, 
+          colors = "black"
+          )
+
+wordcloud(data[["train"]] %>% filter(is_AE == "Yes") %$% tweet_text, 
+          min.freq = 20,
+          random.color = TRUE, 
+          colors = "green"
+          )
+```
+
+# Modeling
+
+
+## Documenttermmatrix
+
+The first step consists in preparing the **document term matrix** (DTM). This is a matrix whose columns corresponds to features of the text. The text is preprocessed here:
+
++ Remove numbers
++ Remove punctuation
++ make everything lowercase
++ [stem word](https://en.wikipedia.org/wiki/Word_stem)
++ strip whitespace
+
+After these steps, features are created from the text:
+
++ Each word stem gives a feature, i.e. the feature matrix will have as many columns as there are distinct word stems in the corpus
++ The value of each feature for each document (tweet) can be computed in various ways:
+  - one-hot-encoding: it is one if the word stem is in the tweet, 0 else
+  - Term frequency: the value of the feature is the number of times the word stem has occured in the tweet
+  - Term frequency inverse document frequency (*TfIdf*): this is a measure for the relative importance of the feature taking into account the frequency of the word stem in the entire corpus. For example, the word **the** may occur very frequently in a tweet, but it occurs also very often in the corpus. Thus its TfIdf will be low. On the other hand, if a word occurs often within a given tweet, but very rarely in the entire document, this means that the tweet is likely to be about this word and thus it obtains a high TfIdf.
+  
+We chose *Term Frequency* here to build the feature vectors. The reason is simple: the other approaches were tried, but using cross validation, Tf performed best.
+
+```{r 03_create document matrix}
+doc_matrix <- create_matrix(c(data[["train"]]$tweet_text, 
+                              data[["test"]]$tweet_text),
+                            language = "english",
+                            removeNumbers = TRUE,
+                            removePunctuation = TRUE,
+                            toLower = TRUE,
+                            stemWords = TRUE,
+                            stripWhitespace = TRUE,
+                            ngramLength = 1,
+                            minDocFreq = 1,
+                            weighting = tm::weightTf)
+```
+
+## Container
+
+Now that we have a DTM, we could use it directly as a feature matrix and train a model using, e.g. the `caret` package. The package `RTextTools`, however, has a very convenient datastructure allowing us to put all important data into one **container**. In the folowing code chunk, we put the tweets and the outcome in the container, specifying which data are training data and which data are test data. The option `virgin = FALSE` specifies that we have full information about the outcomes on the test data.
+
+```{r 03_create contained}
+container <- 
+    create_container(doc_matrix, 
+                     c(data[["train"]]$is_AE, data[["test"]]$is_AE),
+                     trainSize = 1:nrow(data[["train"]]),
+                     testSize = 1:nrow(data[["test"]]) + nrow(data[["train"]]),
+                     virgin = FALSE)
+```
+
+## Model training
+
+Using the container described above, we can directly train models. Here, we train four different models (training the other models is quite slow and does not significantly improve the performance) using the standard parameters:
+
++ MAXENT: Maximum Entropy
++ GLMNET: this is a regularized version of logistic regression
++ SVM: regularized support vector machine
++ TREE: decision tree
+
+```{r}
+fit_models <-
+    train_models(container,
+                 c("MAXENT", "GLMNET", "SVM", "TREE"),
+                 cost = 1000)
+```
+
+## Model prediction
+
+The `RTextTools` package also allows us to make predictions quite easily. The following code chunk produces the results (i.e. predicted probability and predicted label) for each of the four models on the test set:
+
+```{r}
+preds <- classify_models(container, fit_models)
+```
+
+## Model evaluation
+
+The next step is to evaluate the quality of the models. We start with AUC:
+
+```{r}
+par(mfrow = c(2, 2))
+preds %$% roc(data[["test"]]$is_AE, MAXENTROPY_PROB) %>% plot
+preds %$% roc(data[["test"]]$is_AE, GLMNET_PROB) %>% plot
+preds %$% roc(data[["test"]]$is_AE, SVM_PROB) %>% plot
+preds %$% roc(data[["test"]]$is_AE, TREE_PROB) %>% plot
+```
+
+We see that the regularized logistic regression performs best with quite a high area under the curve.
+
+Next, the `RTextTools` package allows us to extract important other measures as well quite easily using the `create_analytics` command. This gives us the precision, recall and f-score for each of the models (recall that the f-score is a weighted average of the precision and the recall).
+
+Also it automatically creates an **ensemble summary**. This is a useful statistics about the combined performance of all four models. The line corresponding to `n >= 2` means the following:
+
++ Coverage tells us on how many percent of the documents two ore more models agree.
++ The recall value corresponds to the recall statistics when restricted to those documents.
+
+```{r}
+analytics <- create_analytics(container, preds)
+```
+
+```{r}
+summary(analytics)
+```
+
+```{r}
+create_ensembleSummary(analytics@document_summary)
+```
+
+
+## Aggregating predictions:
+
+The next step is to aggregate the predictions from different models into a final model.
+
+```{r}
+preds$results <- data[["test"]]$is_AE
+tr_control <- trainControl(method = "cv",
+                           number = 10,
+                           summaryFunction = twoClassSummary,
+                           classProbs = TRUE)
+
+tune_grid <- expand.grid(mtry = c(1, 2, 3, 4))
+
+fit_rf<- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
+                 data = preds,
+                 method = "rf",
+                 trControl = tr_control,
+                 tuneGrid = tune_grid
+                 )
+```
+
+We look at the results:
+
+```{r}
+fit_rf
+varImp(fit_rf)
+```
+
