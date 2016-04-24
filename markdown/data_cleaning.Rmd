@@ -1,0 +1,193 @@
+---
+title: "data_cleaning"
+author: "Karma Tarap"
+date: "14 April 2016"
+output: html_document
+---
+
+#Data collection
+
+Twitter Corpus was downloaded from: http://diego.asu.edu/Publications/ADRMine.html
+
+This is the Corpus referred to in the paper by Nikfarjam et al: 
+Pharmacovigilance from social media: mining adverse drug reaction mentions using sequence labeling with word embedding cluster features
+
+The corpus contains the following files:
+  - Test tweet annotations
+  - Test tweet ids
+  - Train tweet annotations
+  - Train tweet ids
+  - Program to download tweets
+  
+For data confidentiality reasons, the researchers had not made the individual tweets available. However, they had provided a python script that would retreive the Tweets from the tweed id. To maintain the confidentiality, we have made our github area private.
+
+The Tweets were downloaded using the following commands:
+  python download_tweets.py test_tweet_ids.tsv full_test_tweet_ids.tsv
+  python download_tweets.py test_train_ids.tsv full_train_tweet_ids.tsv
+  
+  
+  
+
+```{r}
+
+setwd("/Users/bear/Studies/Harvard/Data_Science/project/e107_Project_Test_Area/markdown")
+source("../r/helper_functions/parse_diego_data.R")
+
+train.data <- parse_diego_data("train")
+
+library(qdap)
+library(qdapDictionaries)
+library(rafalib)
+library(dplyr)
+library(tm)
+library(stringr)
+set.seed(999)
+
+# Investigate a subsection of the data to see what kind of text we are dealing with and what the spell checker spits out
+x <- train_data[sample(nrow(train_data),5), ]
+m <- check_spelling_interactive(x$tweet_text)
+
+
+# Findings:
+# - need to remove twitter handles as these provide no information2
+# - initially remove hashtags (we will keep a track of them to see if we can get any meaning from them)
+# - need to add drug names to list of words to ignore (fda website)
+# - remove emphasis punctuation (bold)
+# - remove urls
+
+
+
+#proposal
+#Convert text to lowercase
+#for each word, lookup if it contains a drug name from our database
+#Remove twitter handles
+#Replace emphasis with their counterpart words
+#- bold-really (<<\w>>)
+#- :)-happy
+#- :(-sad
+```
+
+# Drug names
+
+## Downloaded drug names from https://www.nlm.nih.gov/research/umls/rxnorm/docs/rxnormfiles.html
+
+These are stored as RXNCONSO.RFF
+
+
+```{r}
+
+
+rx.conso <- read.delim(file = '../data/dictionaries/RXNCONSO.RRF', sep='|',header = F, stringsAsFactors=F)
+
+# Column names
+rx.colstr <- "RXCUI LAT TS LUI STT SUI SPREF RXAUI SAUI SCUI SDUI SAB TTY CODE STR SRL SUPPRESS CVF"
+
+# Assign column names to data frame
+names(rx.conso) <- rx.colstr %>%
+  tolower %>%
+  strsplit(split=' ') %>% 
+  unlist
+
+# Subset a list of drug brand names and generics
+# convert to lower for easier lookup
+drug.list <- rx.conso %>%
+  subset((tty %in% c('BN','IN'))) %>%
+  select(tty,code,str) %>%
+  mutate(str=tolower(str))
+
+# Add these to a drug dictionary (list of words to ignore spell checking)
+
+```
+
+
+# Slang words
+
+Scrape these from http://www.netlingo.com/acronyms.php.
+
+Our first step will be to exclude these words from the spellchecker
+
+```{r}
+library(rvest)
+
+url <- "http://www.netlingo.com/acronyms.php"
+
+contents <- read_html(url)
+
+# Using the chrome selector gadget we identified the following attributes containing the dictionary: .list_box3 li, .list_box3 span
+words <- contents %>%
+  html_nodes(".list_box3 span") %>%
+  html_text() %>% tolower 
+
+descriptions <- contents %>%
+  html_nodes(".list_box3 li") %>%
+  html_text() %>% tolower 
+
+slang.lookup <- data.frame(words, descriptions, stringsAsFactors = FALSE)
+
+slang.lookup %>% mutate(gsub('rup', '',descriptions))
+
+
+```
+
+
+
+
+
+
+
+```{r}
+# Create corpus
+my.corpus <- Corpus(VectorSource(train.data$tweet_text))
+
+# Convert all to lower case
+my.corpus <- tm_map(my.corpus, tolower)
+
+# Create some functions to help with the cleaning
+# Coding urls to url so we can group them and use as a feature in our model
+subURL <- function(x) gsub("http[[:alnum:][:punct:]]*", "url", x)
+subURL("ofdmfl http://dfdsofdf") == "ofdmfl url"
+
+# Remove twitter handles references
+removeHandles <- function(x) gsub("@[[:alnum:][:punct:]]+", "", x)
+removeHandles("@so_fd45 this is a test") == " this is a test"
+
+# No words have three consecutive letters of the same character, so compressing to 2
+contractLength <- function(x) gsub("([:lower:])\\1+","\\1\\1", x)
+contractLength("coooool") == "cool"
+
+# Start by contracting the length
+my.corpus <- tm_map(my.corpus, contractLength)
+my.corpus <- tm_map(my.corpus, removeHandles)
+my.corpus <- tm_map(my.corpus, subURL)
+
+inspect(my.corpus[5])
+
+
+for (tweet in seq(my.corpus)){
+  for (word in str_split(my.corpus[[tweet]],"[^a-z0-9_]")[[1]]){
+    
+    # ignore if the word is a drug or a slang
+    if (!word %in% drug.list$str && 
+        !word %in% slang.words){
+      # if the word is a slang/abb, then convert to english
+      
+      
+      
+      # if the word is an emoticon, convert to english
+      
+    }
+    
+    
+    # if the word is a slang, convert to english
+    
+    # 
+    
+  }
+  
+}
+
+
+
+
+```
+
