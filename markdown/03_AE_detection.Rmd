@@ -344,8 +344,6 @@ Now we show the ten tweets for which the model predicts the highest probability 
 
 ```{r}
 order(preds_new_final[, 2], decreasing = TRUE) %>%
-    head(n = 10) %>% 
+    head(n = 30) %>% 
     map_chr(~new_tweets[.])
 ```
-
-We see that the results do not look terribly good...
