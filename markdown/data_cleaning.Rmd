@@ -31,53 +31,46 @@ The Tweets were downloaded using the following commands:
 ```{r}
 
 setwd("/Users/bear/Studies/Harvard/Data_Science/project/e107_Project_Test_Area/markdown")
+
+# Read in the training data 
 source("../r/helper_functions/parse_diego_data.R")
 
 train.data <- parse_diego_data("train")
 
+#converting factors to string
+train.data[] <- lapply(train.data, as.character)
+
+
+# Libraries used
 library(qdap)
 library(qdapDictionaries)
 library(rafalib)
 library(dplyr)
 library(tm)
 library(stringr)
+library(rvest)    #web scraping
+library(hunspell) #spelling dictionary, installed with brew on MacOS
+library(hash)
 set.seed(999)
 
-# Investigate a subsection of the data to see what kind of text we are dealing with and what the spell checker spits out
-x <- train_data[sample(nrow(train_data),5), ]
-m <- check_spelling_interactive(x$tweet_text)
-
-
-# Findings:
-# - need to remove twitter handles as these provide no information2
-# - initially remove hashtags (we will keep a track of them to see if we can get any meaning from them)
-# - need to add drug names to list of words to ignore (fda website)
-# - remove emphasis punctuation (bold)
-# - remove urls
-
-
-
-#proposal
-#Convert text to lowercase
-#for each word, lookup if it contains a drug name from our database
-#Remove twitter handles
-#Replace emphasis with their counterpart words
-#- bold-really (<<\w>>)
-#- :)-happy
-#- :(-sad
+# Investigate a subsection of the data to see what kind of text we are dealing with 
+x <- train.data[sample(nrow(train.data),5), ]
+x
 ```
 
 # Drug names
 
 ## Downloaded drug names from https://www.nlm.nih.gov/research/umls/rxnorm/docs/rxnormfiles.html
 
-These are stored as RXNCONSO.RFF
+These are stored as RXNCONSO.RFF. 
+Create a list so we can identify tweets containing a known drug name, as well as ignore them from spell checking
 
 
 ```{r}
 
-
+# Read drug names 
 rx.conso <- read.delim(file = '../data/dictionaries/RXNCONSO.RRF', sep='|',header = F, stringsAsFactors=F)
+
 
 # Column names
 rx.colstr <- "RXCUI LAT TS LUI STT SUI SPREF RXAUI SAUI SCUI SDUI SAB TTY CODE STR SRL SUPPRESS CVF"
@@ -95,7 +88,6 @@ drug.list <- rx.conso %>%
   select(tty,code,str) %>%
   mutate(str=tolower(str))
 
-# Add these to a drug dictionary (list of words to ignore spell checking)
 
 ```
 
@@ -104,14 +96,20 @@ drug.list <- rx.conso %>%
 
 Scrape these from http://www.netlingo.com/acronyms.php.
 
-Our first step will be to exclude these words from the spellchecker
+Identify a list of slang words, so we can translate them into their english counterpart before passing to the spellchecker 
 
 ```{r}
-library(rvest)
 
-url <- "http://www.netlingo.com/acronyms.php"
 
-contents <- read_html(url)
+#url <- "http://www.netlingo.com/acronyms.php"
+
+#contents <- read_html(url)
+
+write(contents, file = "../data/dictionaries/slang.txt")
+
+contents <- read.table("../data/dictionaries/slang.txt")
+
+lapply(contents, write, "../data/dictionaries/slang_words", append=TRUE, ncolumns=1000)
 
 # Using the chrome selector gadget we identified the following attributes containing the dictionary: .list_box3 li, .list_box3 span
 words <- contents %>%
@@ -124,7 +122,13 @@ descriptions <- contents %>%
 
 slang.lookup <- data.frame(words, descriptions, stringsAsFactors = FALSE)
 
-slang.lookup %>% mutate(gsub('rup', '',descriptions))
+# Cleaning out the descriptions, as it contains the slang words also
+# Also removing slangs that can have multiple interpretations
+# Remove the null key
+slang.lookup <- slang.lookup %>% 
+  mutate(decode = substring(descriptions,nchar(words)+1)) %>% 
+  filter(!grepl(",|-or-",descriptions)) %>%
+  filter(words != "")
 
 
 ```
@@ -136,11 +140,40 @@ slang.lookup %>% mutate(gsub('rup', '',descriptions))
 
 
 ```{r}
+
+# Adding some attributes to the training dataset
+
+
+train.data.new <- train.data %>% 
+  mutate(vect    = strsplit(tweet_text,split=" "), 
+         hashtag = str_extract_all(tweet_text, "#[a-zA-Z]+"),
+         URL     = grepl("http[[:alnum:][:punct:]]*", tweet_text),
+         ae_term = substr(tweet_text,start_offset,end_offset)) 
+
+
+# get drug names
+drugs <- sapply(train.data.new$vect,function(x){intersect(x,drug.list$str)})
+
+# get list emoticon meanings
+data("emoticon")
+emoticons <- sapply(train.data.new$vect, function(x){emoticon$meaning[match(x,emoticon$emoticon)]})
+
+# retrieve drug names and emotions
+train.data.new <- train.data.new %>% 
+  mutate(rown = row_number(),
+         drugs = drugs,
+         emoticons = emoticons)
+
+#place emoticons and slangs into a lookup for substitution
+h_emoticons <- hash(emoticon$emoticon, emoticon$meaning)
+h_slang <- hash(slang.lookup$words, slang.lookup$decode)
+
+
 # Create corpus
-my.corpus <- Corpus(VectorSource(train.data$tweet_text))
+tweet.corpus <- Corpus(VectorSource(train.data.new$tweet_text))
 
 # Convert all to lower case
-my.corpus <- tm_map(my.corpus, tolower)
+tweet.corpus <- tm_map(tweet.corpus, content_transformer(tolower))
 
 # Create some functions to help with the cleaning
 # Coding urls to url so we can group them and use as a feature in our model
@@ -155,39 +188,71 @@ removeHandles("@so_fd45 this is a test") == " this is a test"
 contractLength <- function(x) gsub("([:lower:])\\1+","\\1\\1", x)
 contractLength("coooool") == "cool"
 
+
 # Start by contracting the length
-my.corpus <- tm_map(my.corpus, contractLength)
-my.corpus <- tm_map(my.corpus, removeHandles)
-my.corpus <- tm_map(my.corpus, subURL)
-
-inspect(my.corpus[5])
+tweet.corpus <- tm_map(tweet.corpus, content_transformer(contractLength))
+tweet.corpus <- tm_map(tweet.corpus, content_transformer(removeHandles))
+tweet.corpus <- tm_map(tweet.corpus, content_transformer(subURL))
 
 
-for (tweet in seq(my.corpus)){
-  for (word in str_split(my.corpus[[tweet]],"[^a-z0-9_]")[[1]]){
+for (tweet in seq(tweet.corpus)){
+  for (word in str_split(tweet.corpus[[tweet]],"[^a-z0-9_]")[[1]]){
     
-    # ignore if the word is a drug or a slang
-    if (!word %in% drug.list$str && 
-        !word %in% slang.words){
-      # if the word is a slang/abb, then convert to english
+    # ignore if the word is a drug
+    if (!word %in% drug.list$str && word !=""){
       
+      if (!has.key(word,h_slang) && !has.key(word,h_emoticons)){
+         word = ifelse(hunspell_check(word),word,hunspell_suggest(word)[[1]][1])
+      }
+      else {  
+         # if the word is a slang/abb, then convert to english
+         word = ifelse(has.key(word,h_slang),h_slang[[word]],word)
       
-      
-      # if the word is an emoticon, convert to english
-      
+         # if the word is an emoticon, convert to english
+         word = ifelse(has.key(word,h_emoticons),h_emoticons[[word]],word)
+      }
     }
-    
-    
-    # if the word is a slang, convert to english
-    
-    # 
-    
   }
-  
 }
 
 
+#cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), stringsAsFactors = FALSE)
 
+
+# install.packages("tm.lexicon.GeneralInquirer", repos="http://datacube.wu.ac.at", type="source")
+library(tm.lexicon.GeneralInquirer)
+# install.packages("tm.plugin.sentiment", repos="http://R-Forge.R-project.org")
+library(tm.plugin.sentiment) # posted comments on SO about this not working
+
+tdm <- TermDocumentMatrix(tweet.corpus,
+                          control = list(
+                                         removePunctuation = TRUE,
+                                         stopwords = TRUE,
+                                         stem_words("english")))
+
+
+pos.score <- tm_term_score(tdm, terms_in_General_Inquirer_categories("Positiv")) # this lists each document with number below
+
+neg.score <- tm_term_score(tdm,terms_in_General_Inquirer_categories("Negativ")) 
+
+
+cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), 
+                             positive = pos.score, 
+                             negative = neg.score, 
+                             stringsAsFactors = FALSE)
+
+
+
+cleaned_tweets <- cleaned_tweets %>% 
+  mutate(rown = row_number(), 
+         positivity = (positive - negative) / (positive + negative + 1))
+
+
+cleaned_tweets <- 
+  cleaned_tweets %>% 
+  inner_join(train.data.new)
+
+save(cleaned_tweets,file="../data/cleaned_tweets.Rda")
 
 ```
 
