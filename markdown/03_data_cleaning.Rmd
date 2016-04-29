@@ -243,114 +243,117 @@ Next, we put every together: we add new attributes to the dataset
 + 
 
 ```{r}
-
-# Adding some attributes to the training dataset
-
-
-train.data.new <- train.data %>% 
-  mutate(vect    = strsplit(tweet_text, split=" "), 
-         hashtag = str_extract_all(tweet_text, "#[a-zA-Z]+"),
-         URL     = grepl("http[[:alnum:][:punct:]]*", tweet_text),
-         ae_term = substr(tweet_text,start_offset,end_offset)) 
-
-
-# get drug names
-drugs <- sapply(train.data.new$vect,function(x){intersect(x,drug.list$str)})
-
-# get list emoticon meanings
-data("emoticon")
-emoticons <- sapply(train.data.new$vect, function(x){emoticon$meaning[match(x,emoticon$emoticon)]})
-
-# retrieve drug names and emotions
-train.data.new <- train.data.new %>% 
-  mutate(rown = row_number(),
-         drugs = drugs,
-         emoticons = emoticons)
-
-#place emoticons and slangs into a lookup for substitution
-h_emoticons <- hash(emoticon$emoticon, emoticon$meaning)
-h_slang <- hash(slang.lookup$words, slang.lookup$decode)
-
-
-# Create corpus
-tweet.corpus <- Corpus(VectorSource(train.data.new$tweet_text))
-
-# Convert all to lower case
-tweet.corpus <- tm_map(tweet.corpus, content_transformer(tolower))
-
-# Create some functions to help with the cleaning
-# Coding urls to url so we can group them and use as a feature in our model
-subURL <- function(x) gsub("http[[:alnum:][:punct:]]*", "url", x)
-subURL("ofdmfl http://dfdsofdf") == "ofdmfl url"
-
-# Remove twitter handles references
-removeHandles <- function(x) gsub("@[[:alnum:][:punct:]]+", "", x)
-removeHandles("@so_fd45 this is a test") == " this is a test"
-
-# No words have three consecutive letters of the same character, so compressing to 2
-contractLength <- function(x) gsub("([:lower:])\\1+","\\1\\1", x)
-contractLength("coooool") == "cool"
-
-
-# Start by contracting the length
-tweet.corpus <- tm_map(tweet.corpus, content_transformer(contractLength))
-tweet.corpus <- tm_map(tweet.corpus, content_transformer(removeHandles))
-tweet.corpus <- tm_map(tweet.corpus, content_transformer(subURL))
-
-
-for (tweet in seq(tweet.corpus)){
-  for (word in str_split(tweet.corpus[[tweet]],"[^a-z0-9_]")[[1]]){
-    
-    # ignore if the word is a drug
-    if (!word %in% drug.list$str && word !=""){
+clean_tweets <- function(train.data, drug.list, slang.lookup) {
+  
+  # Adding some attributes to the training dataset
+  train.data.new <- train.data %>% 
+    mutate(vect    = strsplit(tweet_text, split=" "), 
+           hashtag = str_extract_all(tweet_text, "#[a-zA-Z]+"),
+           URL     = grepl("http[[:alnum:][:punct:]]*", tweet_text)) 
+  
+  
+  # get drug names
+  drugs <- sapply(train.data.new$vect,function(x){intersect(x,drug.list$str)})
+  
+  # get list emoticon meanings
+  data("emoticon")
+  emoticons <- sapply(train.data.new$vect, function(x){emoticon$meaning[match(x,emoticon$emoticon)]})
+  
+  # retrieve drug names and emotions
+  train.data.new <- train.data.new %>% 
+    mutate(rown = row_number(),
+           drugs = drugs,
+           emoticons = emoticons)
+  
+  #place emoticons and slangs into a lookup for substitution
+  h_emoticons <- hash(emoticon$emoticon, emoticon$meaning)
+  h_slang <- hash(slang.lookup$words, slang.lookup$decode)
+  
+  
+  # Create corpus
+  tweet.corpus <- Corpus(VectorSource(train.data.new$tweet_text))
+  
+  # Convert all to lower case
+  tweet.corpus <- tm_map(tweet.corpus, content_transformer(tolower))
+  
+  # Create some functions to help with the cleaning
+  # Coding urls to url so we can group them and use as a feature in our model
+  subURL <- function(x) gsub("http[[:alnum:][:punct:]]*", "url", x)
+  subURL("ofdmfl http://dfdsofdf") == "ofdmfl url"
+  
+  # Remove twitter handles references
+  removeHandles <- function(x) gsub("@[[:alnum:][:punct:]]+", "", x)
+  removeHandles("@so_fd45 this is a test") == " this is a test"
+  
+  # No words have three consecutive letters of the same character, so compressing to 2
+  contractLength <- function(x) gsub("([:lower:])\\1+","\\1\\1", x)
+  contractLength("coooool") == "cool"
+  
+  
+  # Start by contracting the length
+  tweet.corpus <- tm_map(tweet.corpus, content_transformer(contractLength))
+  tweet.corpus <- tm_map(tweet.corpus, content_transformer(removeHandles))
+  tweet.corpus <- tm_map(tweet.corpus, content_transformer(subURL))
+  
+  
+  for (tweet in seq(tweet.corpus)){
+    for (word in str_split(tweet.corpus[[tweet]],"[^a-z0-9_]")[[1]]){
       
-      if (!has.key(word,h_slang) && !has.key(word,h_emoticons)){
-         word = ifelse(hunspell_check(word),word,hunspell_suggest(word)[[1]][1])
-      }
-      else {  
-         # if the word is a slang/abb, then convert to english
-         word = ifelse(has.key(word,h_slang),h_slang[[word]],word)
-      
-         # if the word is an emoticon, convert to english
-         word = ifelse(has.key(word,h_emoticons),h_emoticons[[word]],word)
+      # ignore if the word is a drug
+      if (!word %in% drug.list$str && word !=""){
+        
+        if (!has.key(word,h_slang) && !has.key(word,h_emoticons)){
+           word = ifelse(hunspell_check(word),word,hunspell_suggest(word)[[1]][1])
+        }
+        else {  
+           # if the word is a slang/abb, then convert to english
+           word = ifelse(has.key(word,h_slang),h_slang[[word]],word)
+        
+           # if the word is an emoticon, convert to english
+           word = ifelse(has.key(word,h_emoticons),h_emoticons[[word]],word)
+        }
       }
     }
   }
+  
+  
+  #cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), stringsAsFactors = FALSE)
+  # posted comments on SO about this not working
+  
+  tweet.corpus <- tm_map(tweet.corpus, stemDocument)
+  tdm <- TermDocumentMatrix(tweet.corpus,
+                            control = list(
+                                           removePunctuation = TRUE,
+                                           stopwords = TRUE))
+  
+  
+  pos.score <- tm_term_score(tdm, terms_in_General_Inquirer_categories("Positiv")) # this lists each document with number below
+  
+  neg.score <- tm_term_score(tdm,terms_in_General_Inquirer_categories("Negativ")) 
+  
+  
+  cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), 
+                               positive = pos.score, 
+                               negative = neg.score, 
+                               stringsAsFactors = FALSE)
+  
+  
+  
+  cleaned_tweets <- cleaned_tweets %>% 
+    mutate(rown = row_number(), 
+           positivity = (positive - negative) / (positive + negative + 1))
+  
+  
+  cleaned_tweets <- 
+    cleaned_tweets %>% 
+    inner_join(train.data.new)
+
+  cleaned_tweets
 }
 
+cleaned_tweets <- clean_tweets(train.data, make_drug_list(), make_slang_lookup())
 
-#cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), stringsAsFactors = FALSE)
-# posted comments on SO about this not working
-
-tdm <- TermDocumentMatrix(tweet.corpus,
-                          control = list(
-                                         removePunctuation = TRUE,
-                                         stopwords = TRUE,
-                                         stem_words("english")))
-
-
-pos.score <- tm_term_score(tdm, terms_in_General_Inquirer_categories("Positiv")) # this lists each document with number below
-
-neg.score <- tm_term_score(tdm,terms_in_General_Inquirer_categories("Negativ")) 
-
-
-cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), 
-                             positive = pos.score, 
-                             negative = neg.score, 
-                             stringsAsFactors = FALSE)
-
-
-
-cleaned_tweets <- cleaned_tweets %>% 
-  mutate(rown = row_number(), 
-         positivity = (positive - negative) / (positive + negative + 1))
-
-
-cleaned_tweets <- 
-  cleaned_tweets %>% 
-  inner_join(train.data.new)
-
-save(cleaned_tweets,file="../data/cleaned_tweets.Rda")
+#save(cleaned_tweets,file="../data/cleaned_tweets.Rda")
 
 ```
 
