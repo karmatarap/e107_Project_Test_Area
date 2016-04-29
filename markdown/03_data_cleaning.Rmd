@@ -87,6 +87,8 @@ parse_diego_data <- function(type) {
     # Select distinct tweets
     result %<>% distinct(tweet_id)
     
+    result[ ] <- lapply(result, as.character)
+    
     result
 }
 ```
@@ -130,123 +132,115 @@ parse_binary_data <- function(type) {
         mutate(is_AE = as.factor(plyr::revalue(is_AE, 
                                                c("0" = "No", "1" = "Yes"))
                                  ))
+    tweets_frame[ ] <- lapply(tweets_frame, as.character)
     
     tweets_frame
 }
 ```
 
+Now that we have defined the functions reading in the data, let us take a first look at them to get a feeling:
 
-
-```{r}
-
-#setwd("/Users/bear/Studies/Harvard/Data_Science/project/e107_Project_Test_Area/markdown")
-
+```{r 03_first_look_at_data}
 # Read in the training data 
-source("../r/helper_functions/parse_diego_data.R")
-
 train.data <- parse_diego_data("train")
 
-#converting factors to string
-train.data[ ] <- lapply(train.data, as.character)
-
-
-# Libraries used
-library(qdap)
-library(qdapDictionaries)
-library(rafalib)
-library(dplyr)
-library(tm)
-library(stringr)
-library(rvest)    #web scraping
-library(hunspell) #spelling dictionary, installed with brew on MacOS
-library(hash)
+# Set seed
 set.seed(999)
 
 # Investigate a subsection of the data to see what kind of text we are dealing with 
-x <- train.data[sample(nrow(train.data),5), ]
-x
+x <- train.data[sample(nrow(train.data),5), ] %>% tbl_df
+str(x)
 ```
 
-# Drug names
+## Drug names
 
-## Downloaded drug names from https://www.nlm.nih.gov/research/umls/rxnorm/docs/rxnormfiles.html
+The drug names were downloaded from [here](https://www.nlm.nih.gov/research/umls/rxnorm/docs/rxnormfiles.html).
 
-These are stored as RXNCONSO.RFF. 
-Create a list so we can identify tweets containing a known drug name, as well as ignore them from spell checking
+These are stored as `./data/dictionaries/RXNCONSO.RFF`. 
 
+We create a function that makes a list of drugs so we can identify tweets containing a known drug name, as well as ignore them from spell checking.
 
-```{r}
+```{r 03_create_drug_list}
+make_drug_list <- function() {
+    # Read drug names 
+    rx.conso <- read.delim(file = '../data/dictionaries/RXNCONSO.RRF',
+                       sep='|',
+                       header = F, 
+                       stringsAsFactors = F)
+    
+    # Column names
+    rx.colstr <- "RXCUI LAT TS LUI STT SUI SPREF RXAUI SAUI SCUI SDUI SAB TTY CODE STR SRL SUPPRESS CVF"
+    
+    # Assign column names to data frame
+    names(rx.conso) <- rx.colstr %>%
+        tolower %>%
+        strsplit(split=' ') %>% 
+        unlist
+    
+    # Subset a list of drug brand names and generics
+    # convert to lower for easier lookup
+    drug.list <- rx.conso %>%
+        subset((tty %in% c('BN','IN'))) %>%
+        select(tty, code, str) %>%
+        mutate(str = tolower(str))
+    
+    drug.list
+    }
 
-# Read drug names 
-rx.conso <- read.delim(file = '../data/dictionaries/RXNCONSO.RRF', sep='|',header = F, stringsAsFactors=F)
-
-
-# Column names
-rx.colstr <- "RXCUI LAT TS LUI STT SUI SPREF RXAUI SAUI SCUI SDUI SAB TTY CODE STR SRL SUPPRESS CVF"
-
-# Assign column names to data frame
-names(rx.conso) <- rx.colstr %>%
-  tolower %>%
-  strsplit(split=' ') %>% 
-  unlist
-
-# Subset a list of drug brand names and generics
-# convert to lower for easier lookup
-drug.list <- rx.conso %>%
-  subset((tty %in% c('BN','IN'))) %>%
-  select(tty,code,str) %>%
-  mutate(str=tolower(str))
-
-
+drug.list <- make_drug_list()
 ```
 
+<em> What does 'BN' and 'IN' mean? We should explain it </em>
 
-# Slang words
+## Slang words
 
-Scrape these from http://www.netlingo.com/acronyms.php.
+The idea in this step is to clean slang expression and convert then to proper english as well as possible. This is done before passing the tweets to the spellchecker.
 
-Identify a list of slang words, so we can translate them into their english counterpart before passing to the spellchecker 
+Slang words were scraped from [here](http://www.netlingo.com/acronyms.php).
 
-```{r}
+Again, we write a function that makes the conversion table:
 
+```{r 03_slang_expressions}
+make_slang_lookup <- function() {
+    url <- "http://www.netlingo.com/acronyms.php"
+    
+    contents <- read_html(url)
+    
+    #write(contents, file = "../data/dictionaries/slang.txt")
+    
+    #contents <- read.table("../data/dictionaries/slang.txt")
+    
+    #lapply(contents, write, "../data/dictionaries/slang_words", append=TRUE, ncolumns=1000)
+    
+    # Using the chrome selector gadget we identified the following attributes containing the dictionary: .list_box3 li, .list_box3 span
+    words <- contents %>%
+        html_nodes(".list_box3 span") %>%
+        html_text() %>% tolower 
+    
+    descriptions <- contents %>%
+        html_nodes(".list_box3 li") %>%
+        html_text() %>% tolower 
+    
+    slang.lookup <- data.frame(words, descriptions, stringsAsFactors = FALSE)
+    
+    # Cleaning out the descriptions, as it contains the slang words also
+    # Also removing slangs that can have multiple interpretations
+    # Remove the null key
+    slang.lookup <- slang.lookup %>% 
+        mutate(decode = substring(descriptions,nchar(words)+1)) %>% 
+        filter(!grepl(",|-or-",descriptions)) %>%
+        filter(words != "")
+}
 
-url <- "http://www.netlingo.com/acronyms.php"
-
-contents <- read_html(url)
-
-#write(contents, file = "../data/dictionaries/slang.txt")
-
-#contents <- read.table("../data/dictionaries/slang.txt")
-
-#lapply(contents, write, "../data/dictionaries/slang_words", append=TRUE, ncolumns=1000)
-
-# Using the chrome selector gadget we identified the following attributes containing the dictionary: .list_box3 li, .list_box3 span
-words <- contents %>%
-  html_nodes(".list_box3 span") %>%
-  html_text() %>% tolower 
-
-descriptions <- contents %>%
-  html_nodes(".list_box3 li") %>%
-  html_text() %>% tolower 
-
-slang.lookup <- data.frame(words, descriptions, stringsAsFactors = FALSE)
-
-# Cleaning out the descriptions, as it contains the slang words also
-# Also removing slangs that can have multiple interpretations
-# Remove the null key
-slang.lookup <- slang.lookup %>% 
-  mutate(decode = substring(descriptions,nchar(words)+1)) %>% 
-  filter(!grepl(",|-or-",descriptions)) %>%
-  filter(words != "")
-
-
+slang.lookup <- make_slang_lookup()
 ```
 
+Next, we put every together: we add new attributes to the dataset
 
-
-
-
-
++ The **vector of words**: we take the tweet text and split it spaces.
++ We extract the **hastags**
++ We see whether the tweet text contains a **URL**. This could be related to advertisments
++ 
 
 ```{r}
 
@@ -254,7 +248,7 @@ slang.lookup <- slang.lookup %>%
 
 
 train.data.new <- train.data %>% 
-  mutate(vect    = strsplit(tweet_text,split=" "), 
+  mutate(vect    = strsplit(tweet_text, split=" "), 
          hashtag = str_extract_all(tweet_text, "#[a-zA-Z]+"),
          URL     = grepl("http[[:alnum:][:punct:]]*", tweet_text),
          ae_term = substr(tweet_text,start_offset,end_offset)) 
