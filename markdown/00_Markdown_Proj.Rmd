@@ -1,0 +1,59 @@
+---
+title: "Adverse Event Mining From Twitter"
+author: "Julia Gyorffy, Alexander Noll, Tianhui Shi, Karma Tarap"
+date: "04 May 2016"
+output: html_document
+---
+
+```{r 00_setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# All libraries not from CRAN
+library(tidytext)
+
+# Makes sure that we all use the same libraries
+# library(checkpoint)
+# checkpoint("2016-04-01")
+
+# List all libraries in alphabetical order (if possible, e.g. plyr has to be
+# loaded before dplyr)
+library(plyr)
+
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(magrittr)
+library(pROC)
+library(purrr)
+library(RColorBrewer)
+library(RTextTools)
+library(readr)
+library(stringr)
+library(tidyr)
+library(tm)
+library(tm.lexicon.GeneralInquirer)
+#install.packages("tm.plugin.sentiment", repos="http://R-Forge.R-project.org", quiet = TRUE)
+library(tm.plugin.sentiment)
+library(wordcloud)
+
+# Set common theme for plotting (we can change that anytime)
+theme_set(theme_bw())
+```
+
+```{r 00_motivation, child = "01_motivation.Rmd", include = FALSE}
+```
+
+```{r 00_data_collection, child = "02_data_collection.Rmd", include = FALSE}
+```
+
+```{r 00_data_cleaning, child = "03_data_cleaning.Rmd", include = FALSE}
+```
+
+```{r 00_machine_learning, child = "04_machine_learning.Rmd", include = FALSE}
+```
+
+```{r 00_comorbidity, child = "05_comorbidity.Rmd", include = FALSE}
+```
+
+```{r 00_conclusions, child = "06_conclusion.Rmd", include = FALSE}
+```

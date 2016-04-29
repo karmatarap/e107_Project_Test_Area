@@ -10,28 +10,43 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 # This package and the corresponding command makes sure, we all use the same
 # versions of the packages
+library(tidytext)
 library(checkpoint)
 checkpoint("2016-04-01")
+
+library(plyr)
 
 library(caret)
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
+library(hash)
+library(hunspell) #spelling dictionary, installed with brew on MacOS
 library(magrittr)
+library(qdap)
+library(qdapDictionaries)
 library(pROC)
 library(purrr)
+library(rafalib)
 library(RColorBrewer)
 library(RTextTools)
+library(rvest)    #web scraping
 library(readr)
 library(stringr)
 library(tidyr)
 library(tm)
+# install.packages("tm.lexicon.GeneralInquirer", repos="http://datacube.wu.ac.at", type="source")
+library(tm.lexicon.GeneralInquirer)
+# install.packages("tm.plugin.sentiment", repos="http://R-Forge.R-project.org")
+library(tm.plugin.sentiment) 
 library(wordcloud)
 
-theme_set(theme_economist_white())
+theme_set(theme_bw())
 
 source("../r/helper_functions/parse_diego_data.R")
 source("../r/helper_functions/parse-binary_data.R")
+
+set.seed(999)
 ```
 
 # Question
@@ -79,7 +94,8 @@ tidy_data <- function() {
         bind_rows(train_data_annotated,
                   binary_data %>% slice(binary_train_ind)
                   ) %>% 
-        select(tweet_id, user_id, tweet_text, is_AE)
+        select(tweet_id, user_id, tweet_text, is_AE) %>% 
+        distinct(tweet_id)
     
     test_data <- 
         bind_rows(test_data_annotated,
@@ -96,6 +112,8 @@ tidy_data <- function() {
     
     train_data$tweet_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
     test_data$tweet_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    
+    train_data %<>% distinct(tweet_text)
     
     list(train = train_data, test = test_data)
 
@@ -262,11 +280,12 @@ tr_control <- trainControl(method = "cv",
 tune_grid <- expand.grid(mtry = c(1, 2, 3, 4))
 
 fit_rf<- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
-                 data = preds,
-                 method = "rf",
-                 trControl = tr_control,
-                 tuneGrid = tune_grid
-                 )
+               data = preds,
+               method = "rf",
+               trControl = tr_control,
+               tuneGrid = tune_grid,
+               metric = "ROC"
+)
 ```
 
 We look at the results:
@@ -277,7 +296,7 @@ varImp(fit_rf)
 ```
 
 
-The area under curve is slightly below 90%. 
+The area under curve is around 85%. 
 
 # Recent data
 
@@ -306,7 +325,7 @@ parse_new_tweets <- function() {
 new_tweets <- parse_new_tweets()
 ```
 
-In order for the following code chunk to work, the [linked hack](https://groups.google.com/forum/embed/#!topic/rtexttools-help/Drqr3Z897Mk) has to be performed. Furthermore, we have to change the encoding to UTF-8.
+In order for the following code chunk to work, this [hack](https://groups.google.com/forum/embed/#!topic/rtexttools-help/Drqr3Z897Mk) has to be performed. Furthermore, we have to change the encoding to UTF-8.
 
 ```{r}
 source("../r/helper_functions/create_matrix_fixed.R")

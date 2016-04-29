@@ -1,0 +1,32 @@
+# Data collection
+
+## Data used in previous studies
+
+Twitter Corpus was downloaded from [here](http://diego.asu.edu/Publications/ADRMine.html) and [here](http://diego.asu.edu/downloads/twitter_annotated_corpus/).
+
+The first is the Corpus referred to in the paper by [Nikfarjam et al: 
+Pharmacovigilance from social media: mining adverse drug reaction mentions using sequence labeling with word embedding cluster features](http://www.ncbi.nlm.nih.gov/pubmed/25755127) and the second one comes from [Abeed Sarker and Graciela Gonzalez. Portable automatic text classification for adverse drug reaction detection via multi-corpus training. Journal of Biomedical Informatics. 53 (2015) 196-207.](http://diego.asu.edu/Publications/ADRClassify.html)
+
+The first corpus contains the following files:
+  - Test tweet annotations
+  - Test tweet ids
+  - Train tweet annotations
+  - Train tweet ids
+  - Program to download tweets
+  
+The second corpus consists of two files:
+  - Tweet ids
+  - Program to download tweets
+
+For data confidentiality reasons, the researchers had not made the individual tweets available. However, they had provided a python script that would retreive the Tweets from the tweed id. To maintain the confidentiality, we have made our github area private.
+
+The download of the dataset is not executed by default.
+
+```{r 02_download_data, include = FALSE}
+# Download dataset; not executed by default
+system("python ../data/download_tweets/download_tweets.py ../data/download_tweets/train_tweet_ids.tsv ../data/download_tweets/full_train_tweet_ids.tsv")
+system("python ../data/download_tweets/download_tweets.py ../data/download_tweets/test_tweet_ids.tsv ../data/download_tweets/full_test_tweet_ids.tsv")
+system("python ../data/download_tweets/download_tweets.py ../data/download_tweets/Twitter_corpus_releaseset_external.txt ../data/download_tweets/binary_tweets_downloaded.tsv")
+```
+
+## Needed: Script for collection new data!

@@ -16,6 +16,7 @@
 
 parse_diego_data <- function(type) {
     library(dplyr)
+    library(magrittr)
     library(readr)
     library(stringr)
     
@@ -82,6 +83,9 @@ parse_diego_data <- function(type) {
     result <- left_join(result, 
                         adr_lexicon,
                         by = c("annotated_text" = "concept_name"))
+    
+    # Select distinct tweets
+    result %<>% distinct(tweet_id)
     
     result
     

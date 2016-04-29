@@ -1,36 +1,8 @@
----
-title: "data_cleaning"
-author: "Karma Tarap"
-date: "14 April 2016"
-output: html_document
----
-
-#Data collection
-
-Twitter Corpus was downloaded from: http://diego.asu.edu/Publications/ADRMine.html
-
-This is the Corpus referred to in the paper by Nikfarjam et al: 
-Pharmacovigilance from social media: mining adverse drug reaction mentions using sequence labeling with word embedding cluster features
-
-The corpus contains the following files:
-  - Test tweet annotations
-  - Test tweet ids
-  - Train tweet annotations
-  - Train tweet ids
-  - Program to download tweets
-  
-For data confidentiality reasons, the researchers had not made the individual tweets available. However, they had provided a python script that would retreive the Tweets from the tweed id. To maintain the confidentiality, we have made our github area private.
-
-The Tweets were downloaded using the following commands:
-  python download_tweets.py test_tweet_ids.tsv full_test_tweet_ids.tsv
-  python download_tweets.py test_train_ids.tsv full_train_tweet_ids.tsv
-  
-  
-  
+# Data cleaning
 
 ```{r}
 
-setwd("/Users/bear/Studies/Harvard/Data_Science/project/e107_Project_Test_Area/markdown")
+#setwd("/Users/bear/Studies/Harvard/Data_Science/project/e107_Project_Test_Area/markdown")
 
 # Read in the training data 
 source("../r/helper_functions/parse_diego_data.R")
@@ -38,7 +10,7 @@ source("../r/helper_functions/parse_diego_data.R")
 train.data <- parse_diego_data("train")
 
 #converting factors to string
-train.data[] <- lapply(train.data, as.character)
+train.data[ ] <- lapply(train.data, as.character)
 
 
 # Libraries used
@@ -101,15 +73,15 @@ Identify a list of slang words, so we can translate them into their english coun
 ```{r}
 
 
-#url <- "http://www.netlingo.com/acronyms.php"
+url <- "http://www.netlingo.com/acronyms.php"
 
-#contents <- read_html(url)
+contents <- read_html(url)
 
-write(contents, file = "../data/dictionaries/slang.txt")
+#write(contents, file = "../data/dictionaries/slang.txt")
 
-contents <- read.table("../data/dictionaries/slang.txt")
+#contents <- read.table("../data/dictionaries/slang.txt")
 
-lapply(contents, write, "../data/dictionaries/slang_words", append=TRUE, ncolumns=1000)
+#lapply(contents, write, "../data/dictionaries/slang_words", append=TRUE, ncolumns=1000)
 
 # Using the chrome selector gadget we identified the following attributes containing the dictionary: .list_box3 li, .list_box3 span
 words <- contents %>%
@@ -217,12 +189,7 @@ for (tweet in seq(tweet.corpus)){
 
 
 #cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), stringsAsFactors = FALSE)
-
-
-# install.packages("tm.lexicon.GeneralInquirer", repos="http://datacube.wu.ac.at", type="source")
-library(tm.lexicon.GeneralInquirer)
-# install.packages("tm.plugin.sentiment", repos="http://R-Forge.R-project.org")
-library(tm.plugin.sentiment) # posted comments on SO about this not working
+# posted comments on SO about this not working
 
 tdm <- TermDocumentMatrix(tweet.corpus,
                           control = list(
