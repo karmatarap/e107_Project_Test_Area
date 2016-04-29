@@ -1,5 +1,142 @@
 # Data cleaning
 
+## Read the data
+
+In the following, we define a function that reads the corpus which has detailed annotations: for each tweet it contains detailed information about the adverse event:
+
+```{r 03_parse_diego_data}
+#' Parse downloaded annotated data
+#'
+#' @description Parses the data from the DIEGO labs. Depending on the argument 
+#' it reads in the training or test data. It joins the tweets with the 
+#' annotations. Empty annotations means no adverse reaction.
+#'
+#' @param type = c("train", "test")
+#'
+#' @return data frame
+#'
+#' @examples parse_diego_data("train")
+#' @import dplyr, magrittr, readr, stringr
+parse_diego_data <- function(type) {
+    # Load data
+    annotation_file <-
+        ifelse(type == "train", 
+               "../data/download_tweets/train_tweet_annotations.tsv",
+               ifelse(type == "test",
+                      "../data/download_tweets/test_tweet_annotations.tsv",
+                      stop("type should be either 'train' or 'test'"
+                      ))
+               )
+    
+    tweets_file <- 
+        ifelse(type == "train",
+               "../data/download_tweets/full_train_tweet_ids.tsv",
+               ifelse(type == "test",
+                      "../data/download_tweets/full_test_tweet_ids.tsv",
+                      stop("type should be either 'train' or 'test'"))
+               )
+    
+    
+    # Read annotations and rename columns
+    annotations <- 
+        read_tsv(annotation_file,
+                 col_names = FALSE,
+                 col_types = c("ciicccc")
+        ) %>% 
+        rename(text_id = X1,
+               start_offset = X2,
+               end_offset = X3,
+               semantic_type = X4,
+               annotated_text = X5,
+               related_drug = X6,
+               target_drug = X7
+        )
+    
+    # Parse tweets
+    tweets <- 
+        read_lines(tweets_file) %>% 
+        str_split(., "\t") %>%
+        as.data.frame() %>% 
+        as.matrix() %>% 
+        t %>% 
+        as.data.frame() %>% 
+        `rownames<-`(., NULL) %>% 
+        rename(tweet_id = V1,
+               user_id = V2,
+               text_id = V3,
+               tweet_text = V4
+        )
+    
+    # Read in the ADR lexicon and rename
+    adr_lexicon <- read_tsv("../data/download_tweets/ADR_lexicon.tsv",
+                            skip = 21, 
+                            col_names = FALSE) %>% 
+        rename(concept_id = X1,
+               concept_name = X2,
+               source = X3)
+    
+    # Join tweets and annotations
+    result <- 
+        suppressWarnings(left_join(tweets, annotations, by = "text_id"))
+    
+    # Join result with ADR lexicon
+    result <- left_join(result, 
+                        adr_lexicon,
+                        by = c("annotated_text" = "concept_name"))
+    
+    # Select distinct tweets
+    result %<>% distinct(tweet_id)
+    
+    result
+}
+```
+
+Next, we define a similar function that reads in the binary annotated file:
+
+```{r 03_parse_binary_annotations}
+#' Parse binary data
+#'
+#' @description Parses the data with binary annotation¨
+#'
+#' @return data frame
+#'
+#' @examples parse_binary_data()
+#' @import dplyr, purrr, readr, stringr
+
+parse_binary_data <- function(type) {
+    # Load data
+    tweets_file <- "../data/download_tweets/binary_tweets_downloaded.tsv"
+    
+    # Parse tweets: bad character "\r" has to be removed before the string
+    # can be split
+    individual_tweets <- 
+        read_file(tweets_file) %>% 
+        str_replace_all("\r", "") %>% 
+        str_split(., "\n") %>%
+        unlist()
+    
+    # Split the tweets and have four output columns
+    # Revalue is_AE column (needed for caret to work with some ML algos)
+    tweets_frame <- 
+        individual_tweets %>% 
+        str_split_fixed("\t", 4) %>% 
+        as.data.frame() %>% 
+        rename(tweet_id = V1,
+               user_id = V2,
+               is_AE = V3,
+               tweet_text = V4
+        ) %>% 
+        filter(is_AE != "") %>% 
+        mutate(is_AE = as.factor(plyr::revalue(is_AE, 
+                                               c("0" = "No", "1" = "Yes"))
+                                 ))
+    
+    tweets_frame
+}
+```
+
+
+
 ```{r}
 
 #setwd("/Users/bear/Studies/Harvard/Data_Science/project/e107_Project_Test_Area/markdown")
