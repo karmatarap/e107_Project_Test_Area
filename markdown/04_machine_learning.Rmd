@@ -1,55 +1,6 @@
----
-title: "Predict ADR"
-author: "Alexander Noll"
-date: "21 April 2016"
-output: html_document
----
+# Predicting adverse events
 
-```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-
-# This package and the corresponding command makes sure, we all use the same
-# versions of the packages
-library(tidytext)
-library(checkpoint)
-checkpoint("2016-04-01")
-
-library(plyr)
-
-library(caret)
-library(dplyr)
-library(ggplot2)
-library(ggthemes)
-library(hash)
-library(hunspell) #spelling dictionary, installed with brew on MacOS
-library(magrittr)
-library(qdap)
-library(qdapDictionaries)
-library(pROC)
-library(purrr)
-library(rafalib)
-library(RColorBrewer)
-library(RTextTools)
-library(rvest)    #web scraping
-library(readr)
-library(stringr)
-library(tidyr)
-library(tm)
-# install.packages("tm.lexicon.GeneralInquirer", repos="http://datacube.wu.ac.at", type="source")
-library(tm.lexicon.GeneralInquirer)
-# install.packages("tm.plugin.sentiment", repos="http://R-Forge.R-project.org")
-library(tm.plugin.sentiment) 
-library(wordcloud)
-
-theme_set(theme_bw())
-
-source("../r/helper_functions/parse_diego_data.R")
-source("../r/helper_functions/parse-binary_data.R")
-
-set.seed(999)
-```
-
-# Question
+In this section, we train a machine learning with the goal of being able to predict adverse events from tweets. In a second step, we apply this machine learning to recent twitter data. 
 
 The question we ask here is the following:
 
@@ -61,11 +12,16 @@ A more refined version of the question above is:
 
 > Are the quantitative measures "precision", "recall", "F-score" and "auc" when the model is evaluated on recent data significantly lower than on the validation set used in the original studies?
 
-A quantitative way of evaluating this question is to train several models on the older dataset and compare the various scores.
+A quantitative way of evaluating this question is to train several models on the older dataset and compare the various scores when evaluated on new data.
 
-# Data
+## Data
 
-The next step is to process the data. We wrote helper functions (`parse_diego_data` and `parse_binary_data`) that read in the data and return tidy data, i.e. one observation (tweet) per row. The dataset containing detailed annotations comes already split into two pieces. 
+The dataset was prepared in the Data Cleaning section. Here, we combine the various datasets and split into a training and validation set:
+
++ The dataset with detailed annotation comes split into a training and a test set. We use this splitting.
++ The binary annotated dataset is split into a training (75%) and cross-validation (25%) set
+
+The reason for actually splitting the dataset at this stage and not just performing repeated cross validation is that we will train **several models** on the training data and then [use the scores of these models as **inputs** to a new machine learning model](http://www.stat.berkeley.edu/~ledell/docs/dlab_ensembles.pdf). So, in order to perform proper cross validation we should repeat this entire procedure several times.
 
 ```{r 03_read_data, warning = FALSE}
 tidy_data <- function() {
@@ -76,17 +32,21 @@ tidy_data <- function() {
     # Returns: list whose first entry is the training set and whose second
     #          entry is the test set
     
-    # Read dataset that is annotated in detail
+    # Load datasets
+    load("../data/cleaned_train.Rda")
+    load("../data/cleaned_test.Rda")
+    load("../data/cleaned_binary.Rda")
+    
     train_data_annotated <- 
-        parse_diego_data("train") %>%
+        cleaned_train %>%
         mutate(is_AE = as.factor(ifelse(!is.na(start_offset), "Yes", "No")))
     
     test_data_annotated <-
-        parse_diego_data("test") %>%
+        cleaned_test %>%
         mutate(is_AE = as.factor(ifelse(!is.na(start_offset), "Yes", "No")))
     
     # Read binary annotated dataset
-    binary_data <- parse_binary_data()
+    binary_data <- cleaned_binary
     binary_train_ind <- createDataPartition(binary_data$is_AE, p = 0.75, list = FALSE)
     
     # Bind two sets
@@ -94,84 +54,205 @@ tidy_data <- function() {
         bind_rows(train_data_annotated,
                   binary_data %>% slice(binary_train_ind)
                   ) %>% 
-        select(tweet_id, user_id, tweet_text, is_AE) %>% 
+        select(tweet_id, user_id, stemmed, positive, 
+               negative, hashtag, URL, is_AE) %>% 
         distinct(tweet_id)
     
     test_data <- 
         bind_rows(test_data_annotated,
                   binary_data %>% slice(-binary_train_ind)
                   )  %>% 
-        select(tweet_id, user_id, tweet_text, is_AE)
+        select(tweet_id, user_id, stemmed, positive, 
+               negative, hashtag, URL, is_AE)
     
     train_data$is_AE %<>% as.factor
     test_data$is_AE %<>% as.factor
         
     # Remove drugs from text
-    drugs <- read_lines("../data/download_tweets/drug_names.txt", skip = 6)
+    drugs <-
+        read_lines("../data/download_tweets/drug_names.txt", skip = 6) %>% 
+        stemDocument()
     drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
     
-    train_data$tweet_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
-    test_data$tweet_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    # Remove hashtag symbol
+    train_data$hashtag %<>% str_replace_all("#", "")
+    test_data$hashtag %<>% str_replace_all("#", "")
     
-    train_data %<>% distinct(tweet_text)
+    # Change hashtags
+    train_data$hashtag %<>% str_to_lower() %>% stemDocument()
+    test_data$hashtag %<>% str_to_lower() %>% stemDocument()
+    
+    train_data$hashtag <- plyr::revalue(train_data$hashtag, c("character(0)" = NA))
+    test_data$hashtag <- plyr::revalue(test_data$hashtag, c("character(0)" = NA))
+    
+     # Extract drug
+    train_data$drug <- 
+        str_c(str_extract_all(train_data$stemmed, drug_regex),
+              str_extract_all(train_data$hashtag, drug_regex)) %>% 
+        str_replace_all("character\\(0\\)", "")
+    test_data$drug <- 
+        str_c(str_extract_all(test_data$stemmed, drug_regex),
+              str_extract_all(test_data$hashtag, drug_regex)) %>% 
+        str_replace_all("character\\(0\\)", "")
+    
+    # Remove drug from tweet and hashtag
+    train_data$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    test_data$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    
+    train_data$hashtag %<>% 
+        str_replace_all(drug_regex, "") %>% 
+        str_replace_all('", ', "") %>% 
+        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
+        str_replace_all('\\"', " ") %>% 
+        ifelse(. == "", NA, .)
+    
+    test_data$hashtag %<>% 
+        str_replace_all(drug_regex, "") %>% 
+        str_replace_all('", ', "") %>% 
+        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
+        str_replace_all('\\"', " ") %>% 
+        ifelse(. == "", NA, .)
+    
+    train_data %<>% distinct(stemmed)
     
     list(train = train_data, test = test_data)
-
-
 }
 
 data <- tidy_data()
 ```
 
-The dataset consists at this stage of the following four features:
+The dataset consists at this stage of the following features:
 
 Column name      |  Description
 -----------------|-------------
 tweet_id         | Unique identifier of the tweet
 user_id          | Unique identifier of the user posting the tweet
-tweet_text       | Actual tweet text
+stemmed          | Actual tweet text, cleaned and stemmed
+positive         | Positive sentiments
+negative         | Negative sentiments
+hastag           | character of hashtags
+URL              | does the tweet contain a URLS
 is_AE            | Is the tweet related to an adverse event
+drug             | names of drugs in tweet
 
-The tweet texts have not been cleaned in any way at this stage.
 
-# Exploratory data analysis
+## Exploratory data analysis
 
-Let us first do exploratory data analysis on the tweets. One very popular method for this is to use **wordclouds**. We first produce two wordclouds: one (in black) with tweets not related to an AE and one (in green) related to adverse events. We see that there are interesting differences between the two wordclouds.
+Let us first do exploratory data analysis on the tweets.
+
+The first interesting question we have is how **balanced** the dataset is: what is the proportion of adverse event related tweets?
+
+```{r 03_explore_data_imbalance}
+data[[1]] %$%
+    table(is_AE) %>% 
+    pander
+```
+
+So there is quite a big imbalance: most tweets containing one of the drug names are not related to an adverse event.
+
+One very popular method for this is to use **wordclouds**. We first produce two wordclouds: one (in black) with tweets not related to an AE and one (in green) related to adverse events. We see that there are interesting differences between the two wordclouds.
 
 + The right one contains many more "negative" words and words that are obviously related to not feeling good
 + The left wordcloud contains many neutral words, but also many negative words. These negative words, however are not related to an adverse event (consider, e.g. the phrase "depression hurts cymbalta can help")
 
 ```{r 03_wordcloud_overall, warning = FALSE}
-pal <- brewer.pal(8, "Spectral")
-
 par(mfrow = c(1, 2))
-wordcloud(data[["train"]] %>% filter(is_AE == "No") %$% tweet_text, 
+wordcloud(data[["train"]] %>% filter(is_AE == "No") %$% stemmed, 
           min.freq = 20,
           random.color = TRUE, 
           colors = "black"
           )
 
-wordcloud(data[["train"]] %>% filter(is_AE == "Yes") %$% tweet_text, 
+wordcloud(data[["train"]] %>% filter(is_AE == "Yes") %$% stemmed, 
           min.freq = 20,
           random.color = TRUE, 
           colors = "green"
           )
 ```
 
-# Modeling
+```{r 03_word_counts}
+data[[1]] %>% 
+    unnest_tokens(word, stemmed) %>% 
+    anti_join(stop_words, by = "word") %>% 
+    count(word) %>% 
+    top_n(30, n) %>% 
+    mutate(word = reorder(word, n)) %>% 
+    ggplot(aes(x = word, y = n)) +
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    xlab("Word") +
+    ylab("Count")
+```
+
+```{r 03_word_counts_comparions}
+data[[1]] %>% 
+    unnest_tokens(word, stemmed) %>% 
+    anti_join(stop_words, by = "word") %>%
+    filter(is_AE == "Yes") %>% 
+    count(word) %>% 
+    top_n(30, n) %>% 
+    ungroup() %>% 
+    mutate(word = reorder(word, n)) %>% 
+    ggplot(aes(x = word, y = n)) +
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    xlab("Word") +
+    ylab("Count")
+```
+
+We see quite a big difference in sentiments between tweets corresponding to adverse events and those not corresponding to adverse events:
+
++ *Trust* is much lower in AE tweets
++ *Negative* is much lower in AE tweets
++ *Positive* sentiments occur with higher frequency in non-AE tweets
+
+```{r 04_sentiments}
+data[[1]] %>% 
+    unnest_tokens(word, stemmed) %>% 
+    inner_join(sentiments, by = "word") %>% 
+    count(is_AE, sentiment) %>% 
+    group_by(is_AE) %>% 
+    mutate(n = n / n()) %>% 
+    ggplot(aes(x = sentiment, y = n)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~is_AE) +
+    coord_flip() +
+    xlab("Sentiment") +
+    ylab("Count")
+```
+
+We also see that tweets correspoding to AEs tend to be slightly longer, though that criterion alone is of course insufficient (this hold true even more considering the imbalance of the dataset)
+
+```{r 04_tweet_length}
+data[[1]] %>% 
+    unnest_tokens(word, stemmed) %>% 
+    count(tweet_id, is_AE) %>% 
+    ggplot(aes(x = n, color = is_AE)) +
+    geom_density() +
+    xlab("Number of words per tweet") +
+    scale_color_manual(values = c("Blue", "Red"),
+                       name = "AE",
+                       labels = c("No", "Yes"))
+```
 
 
+```{r 04_ngrams}
+data[[1]] %>% 
+    unnest_tokens(word, stemmed, token = "regex", "[a-z]{3}") %>% 
+    count(tweet_id, is_AE) %>% 
+    ggplot(aes(x = n, color = is_AE)) +
+    geom_density() +
+    xlab("Number of words per tweet") +
+    scale_color_manual(values = c("Blue", "Red"),
+                       name = "AE",
+                       labels = c("No", "Yes"))
+```
+
+
+## Modeling
 ## Documenttermmatrix
 
-The first step consists in preparing the **document term matrix** (DTM). This is a matrix whose columns corresponds to features of the text. The text is preprocessed here:
-
-+ Remove numbers
-+ Remove punctuation
-+ make everything lowercase
-+ [stem word](https://en.wikipedia.org/wiki/Word_stem)
-+ strip whitespace
-
-After these steps, features are created from the text:
+The first step consists in preparing the **document term matrix** (DTM). This is a matrix whose columns corresponds to features of the text. 
 
 + Each word stem gives a feature, i.e. the feature matrix will have as many columns as there are distinct word stems in the corpus
 + The value of each feature for each document (tweet) can be computed in various ways:
@@ -182,8 +263,8 @@ After these steps, features are created from the text:
 We chose *Term Frequency* here to build the feature vectors. The reason is simple: the other approaches were tried, but using cross validation, Tf performed best.
 
 ```{r 03_create document matrix}
-doc_matrix <- create_matrix(c(data[["train"]]$tweet_text, 
-                              data[["test"]]$tweet_text),
+doc_matrix <- create_matrix(c(data[["train"]]$stemmed, 
+                              data[["test"]]$stemmed),
                             language = "english",
                             removeNumbers = TRUE,
                             removePunctuation = TRUE,

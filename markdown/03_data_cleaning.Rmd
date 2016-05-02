@@ -7,8 +7,8 @@ In the following, we define a function that reads the corpus which has detailed 
 ```{r 03_parse_diego_data}
 #' Parse downloaded annotated data
 #'
-#' @description Parses the data from the DIEGO labs. Depending on the argument 
-#' it reads in the training or test data. It joins the tweets with the 
+#' @description Parses the data from the DIEGO labs. Depending on the argument
+#' it reads in the training or test data. It joins the tweets with the
 #' annotations. Empty annotations means no adverse reaction.
 #'
 #' @param type = c("train", "test")
@@ -20,29 +20,29 @@ In the following, we define a function that reads the corpus which has detailed 
 parse_diego_data <- function(type) {
     # Load data
     annotation_file <-
-        ifelse(type == "train", 
+        ifelse(type == "train",
                "../data/download_tweets/train_tweet_annotations.tsv",
                ifelse(type == "test",
                       "../data/download_tweets/test_tweet_annotations.tsv",
                       stop("type should be either 'train' or 'test'"
                       ))
                )
-    
-    tweets_file <- 
+
+    tweets_file <-
         ifelse(type == "train",
                "../data/download_tweets/full_train_tweet_ids.tsv",
                ifelse(type == "test",
                       "../data/download_tweets/full_test_tweet_ids.tsv",
                       stop("type should be either 'train' or 'test'"))
                )
-    
-    
+
+
     # Read annotations and rename columns
-    annotations <- 
+    annotations <-
         read_tsv(annotation_file,
                  col_names = FALSE,
                  col_types = c("ciicccc")
-        ) %>% 
+        ) %>%
         rename(text_id = X1,
                start_offset = X2,
                end_offset = X3,
@@ -51,44 +51,44 @@ parse_diego_data <- function(type) {
                related_drug = X6,
                target_drug = X7
         )
-    
+
     # Parse tweets
-    tweets <- 
-        read_lines(tweets_file) %>% 
+    tweets <-
+        read_lines(tweets_file) %>%
         str_split(., "\t") %>%
-        as.data.frame() %>% 
-        as.matrix() %>% 
-        t %>% 
-        as.data.frame() %>% 
-        `rownames<-`(., NULL) %>% 
+        as.data.frame() %>%
+        as.matrix() %>%
+        t %>%
+        as.data.frame() %>%
+        `rownames<-`(., NULL) %>%
         rename(tweet_id = V1,
                user_id = V2,
                text_id = V3,
                tweet_text = V4
         )
-    
+
     # Read in the ADR lexicon and rename
     adr_lexicon <- read_tsv("../data/download_tweets/ADR_lexicon.tsv",
-                            skip = 21, 
-                            col_names = FALSE) %>% 
+                            skip = 21,
+                            col_names = FALSE) %>%
         rename(concept_id = X1,
                concept_name = X2,
                source = X3)
-    
+
     # Join tweets and annotations
-    result <- 
+    result <-
         suppressWarnings(left_join(tweets, annotations, by = "text_id"))
-    
+
     # Join result with ADR lexicon
-    result <- left_join(result, 
+    result <- left_join(result,
                         adr_lexicon,
                         by = c("annotated_text" = "concept_name"))
-    
+
     # Select distinct tweets
-    result %<>% distinct(tweet_id)
-    
+    result <- result %>% distinct(tweet_id)
+
     result[ ] <- lapply(result, as.character)
-    
+
     result
 }
 ```
@@ -108,32 +108,32 @@ Next, we define a similar function that reads in the binary annotated file:
 parse_binary_data <- function(type) {
     # Load data
     tweets_file <- "../data/download_tweets/binary_tweets_downloaded.tsv"
-    
+
     # Parse tweets: bad character "\r" has to be removed before the string
     # can be split
-    individual_tweets <- 
-        read_file(tweets_file) %>% 
-        str_replace_all("\r", "") %>% 
+    individual_tweets <-
+        read_file(tweets_file) %>%
+        str_replace_all("\r", "") %>%
         str_split(., "\n") %>%
         unlist()
-    
+
     # Split the tweets and have four output columns
     # Revalue is_AE column (needed for caret to work with some ML algos)
-    tweets_frame <- 
-        individual_tweets %>% 
-        str_split_fixed("\t", 4) %>% 
-        as.data.frame() %>% 
+    tweets_frame <-
+        individual_tweets %>%
+        str_split_fixed("\t", 4) %>%
+        as.data.frame() %>%
         rename(tweet_id = V1,
                user_id = V2,
                is_AE = V3,
                tweet_text = V4
-        ) %>% 
-        filter(is_AE != "") %>% 
-        mutate(is_AE = as.factor(plyr::revalue(is_AE, 
+        ) %>%
+        filter(is_AE != "") %>%
+        mutate(is_AE = as.factor(plyr::revalue(is_AE,
                                                c("0" = "No", "1" = "Yes"))
                                  ))
     tweets_frame[ ] <- lapply(tweets_frame, as.character)
-    
+
     tweets_frame
 }
 ```
@@ -141,56 +141,82 @@ parse_binary_data <- function(type) {
 Now that we have defined the functions reading in the data, let us take a first look at them to get a feeling:
 
 ```{r 03_first_look_at_data}
-# Read in the training data 
+# For interactive session, will remove on final
+# Load all required libraries
+
+# libs <- c("dplyr", "readr", "stringr","purrr","tidyr","tm","qdap","qdapDictionaries","splitstackshape","hunspell","rvest","knitr")
+# lapply(libs, require, character.only = TRUE)
+
+# Read in the training data
 train.data <- parse_diego_data("train")
+test.data <- parse_diego_data("test")
+binary.data <- parse_binary_data()
+```
 
-# Set seed
-set.seed(999)
+# First look at the data
 
-# Investigate a subsection of the data to see what kind of text we are dealing with 
-x <- train.data[sample(nrow(train.data),5), ] %>% tbl_df
-str(x)
+We can see from the tweets that we might want to extract the drug names "humira" to use as a feature in future models. Even though the researchers have annotated the drug names on this dataset, this should help us classify non-annotated tweets.
+
+```{r 03_example_1}
+train.data$tweet_text[709] 
+```
+
+Although our sample of tweets, for the most part, were correctly spelt. We still wanted to run it through a spell checker to ensure our models were robust.
+
+```{r 03_example_2}
+train.data$tweet_text[318]
+```
+
+We can also see a few examples of internet slang usage. This is hard for a spell checker to correct so we want to investigate if we can clean this up a bit.
+
+```{r 03_example_3}
+train.data$tweet_text[751]
+```
+
+A further challenge we see is that there is sometimes repeats of characters to show emphasis. This will need to be corrected also.
+```{r 03_example_4}
+train.data$tweet_text[807]
 ```
 
 ## Drug names
 
 The drug names were downloaded from [here](https://www.nlm.nih.gov/research/umls/rxnorm/docs/rxnormfiles.html).
 
-These are stored as `./data/dictionaries/RXNCONSO.RFF`. 
+These are stored as `./data/dictionaries/RXNCONSO.RFF`.
 
 We create a function that makes a list of drugs so we can identify tweets containing a known drug name, as well as ignore them from spell checking.
 
 ```{r 03_create_drug_list}
 make_drug_list <- function() {
-    # Read drug names 
+    # Read drug names
     rx.conso <- read.delim(file = '../data/dictionaries/RXNCONSO.RRF',
                        sep='|',
-                       header = F, 
+                       header = F,
                        stringsAsFactors = F)
-    
+
     # Column names
     rx.colstr <- "RXCUI LAT TS LUI STT SUI SPREF RXAUI SAUI SCUI SDUI SAB TTY CODE STR SRL SUPPRESS CVF"
-    
+
     # Assign column names to data frame
     names(rx.conso) <- rx.colstr %>%
         tolower %>%
-        strsplit(split=' ') %>% 
+        strsplit(split=' ') %>%
         unlist
-    
-    # Subset a list of drug brand names and generics
+
+    # Subset a list of drug brand names (BN) and generics/ingredient name (IN)
     # convert to lower for easier lookup
     drug.list <- rx.conso %>%
         subset((tty %in% c('BN','IN'))) %>%
         select(tty, code, str) %>%
         mutate(str = tolower(str))
-    
+
     drug.list
     }
 
 drug.list <- make_drug_list()
 ```
 
-<em> What does 'BN' and 'IN' mean? We should explain it </em>
+
 
 ## Slang words
 
@@ -203,36 +229,37 @@ Again, we write a function that makes the conversion table:
 ```{r 03_slang_expressions}
 make_slang_lookup <- function() {
     url <- "http://www.netlingo.com/acronyms.php"
-    
+
     contents <- read_html(url)
-    
+
     #write(contents, file = "../data/dictionaries/slang.txt")
-    
+
     #contents <- read.table("../data/dictionaries/slang.txt")
-    
+
     #lapply(contents, write, "../data/dictionaries/slang_words", append=TRUE, ncolumns=1000)
-    
+
     # Using the chrome selector gadget we identified the following attributes containing the dictionary: .list_box3 li, .list_box3 span
     words <- contents %>%
         html_nodes(".list_box3 span") %>%
-        html_text() %>% tolower 
-    
+        html_text() %>% tolower
+
     descriptions <- contents %>%
         html_nodes(".list_box3 li") %>%
-        html_text() %>% tolower 
-    
+        html_text() %>% tolower
+
     slang.lookup <- data.frame(words, descriptions, stringsAsFactors = FALSE)
-    
+
     # Cleaning out the descriptions, as it contains the slang words also
     # Also removing slangs that can have multiple interpretations
     # Remove the null key
-    slang.lookup <- slang.lookup %>% 
-        mutate(decode = substring(descriptions,nchar(words)+1)) %>% 
+    slang.lookup <- slang.lookup %>%
+        mutate(decode = substring(descriptions,nchar(words)+1)) %>%
         filter(!grepl(",|-or-",descriptions)) %>%
         filter(words != "")
 }
 
 slang.lookup <- make_slang_lookup()
+
 ```
 
 Next, we put every together: we add new attributes to the dataset
@@ -240,120 +267,115 @@ Next, we put every together: we add new attributes to the dataset
 + The **vector of words**: we take the tweet text and split it spaces.
 + We extract the **hastags**
 + We see whether the tweet text contains a **URL**. This could be related to advertisments
-+ 
++
 
-```{r}
+```{r 03_clean_tweets}
 clean_tweets <- function(train.data, drug.list, slang.lookup) {
-  
-  # Adding some attributes to the training dataset
-  train.data.new <- train.data %>% 
-    mutate(vect    = strsplit(tweet_text, split=" "), 
-           hashtag = str_extract_all(tweet_text, "#[a-zA-Z]+"),
-           URL     = grepl("http[[:alnum:][:punct:]]*", tweet_text)) 
-  
-  
-  # get drug names
-  drugs <- sapply(train.data.new$vect,function(x){intersect(x,drug.list$str)})
-  
-  # get list emoticon meanings
+
+  #Loading the emoticon dataset from qdapDictionaries. This converts emoticons to their english text counterpart
   data("emoticon")
-  emoticons <- sapply(train.data.new$vect, function(x){emoticon$meaning[match(x,emoticon$emoticon)]})
-  
-  # retrieve drug names and emotions
-  train.data.new <- train.data.new %>% 
-    mutate(rown = row_number(),
-           drugs = drugs,
-           emoticons = emoticons)
-  
-  #place emoticons and slangs into a lookup for substitution
-  h_emoticons <- hash(emoticon$emoticon, emoticon$meaning)
-  h_slang <- hash(slang.lookup$words, slang.lookup$decode)
-  
-  
-  # Create corpus
-  tweet.corpus <- Corpus(VectorSource(train.data.new$tweet_text))
-  
-  # Convert all to lower case
-  tweet.corpus <- tm_map(tweet.corpus, content_transformer(tolower))
-  
-  # Create some functions to help with the cleaning
-  # Coding urls to url so we can group them and use as a feature in our model
-  subURL <- function(x) gsub("http[[:alnum:][:punct:]]*", "url", x)
-  subURL("ofdmfl http://dfdsofdf") == "ofdmfl url"
-  
-  # Remove twitter handles references
-  removeHandles <- function(x) gsub("@[[:alnum:][:punct:]]+", "", x)
-  removeHandles("@so_fd45 this is a test") == " this is a test"
-  
-  # No words have three consecutive letters of the same character, so compressing to 2
-  contractLength <- function(x) gsub("([:lower:])\\1+","\\1\\1", x)
-  contractLength("coooool") == "cool"
-  
-  
-  # Start by contracting the length
-  tweet.corpus <- tm_map(tweet.corpus, content_transformer(contractLength))
-  tweet.corpus <- tm_map(tweet.corpus, content_transformer(removeHandles))
-  tweet.corpus <- tm_map(tweet.corpus, content_transformer(subURL))
-  
-  
-  for (tweet in seq(tweet.corpus)){
-    for (word in str_split(tweet.corpus[[tweet]],"[^a-z0-9_]")[[1]]){
+
+  train.data.new <- train.data %>%
+    mutate(
+      #ae_term       = substr(tweet_text,start_offset,end_offset),      # Extract ae terms (only applicable here)
+      hashtag       = str_extract_all(tweet_text,"#[a-zA-Z]+"),        # Collect all hashtags
+      URL           = grepl("http[[:alnum:][:punct:]]*", tweet_text)   # Boolean to indicate if tweet contains UR
       
-      # ignore if the word is a drug
-      if (!word %in% drug.list$str && word !=""){
-        
-        if (!has.key(word,h_slang) && !has.key(word,h_emoticons)){
-           word = ifelse(hunspell_check(word),word,hunspell_suggest(word)[[1]][1])
-        }
-        else {  
-           # if the word is a slang/abb, then convert to english
-           word = ifelse(has.key(word,h_slang),h_slang[[word]],word)
-        
-           # if the word is an emoticon, convert to english
-           word = ifelse(has.key(word,h_emoticons),h_emoticons[[word]],word)
-        }
-      }
-    }
-  }
+    ) %>%
+    arrange(tweet_id) %>%
+    mutate(rown = row_number())
   
   
-  #cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), stringsAsFactors = FALSE)
-  # posted comments on SO about this not working
   
+  
+  # Reshaping the data
+  # Transposing to get one word per row using the strsplitstack package. This allows us to preserve emoticons
+  train.data.long <- train.data.new %>%
+    select(tweet_id, tweet_text) %>%
+    mutate(words = strsplit(as.character(tolower(tweet_text))," ")) %>%
+    unnest() %>%
+    group_by(tweet_id) %>%
+    mutate(wordn = row_number()) %>%
+    ungroup %>%
+    left_join(emoticon, by=c("words"="emoticon"))             # Add the meaning for the emoticons
+
+
+  train.data.aug <- train.data.long %>%
+    mutate(
+      is_hashtag = grepl("#[a-zA-Z]+",words),                 # attribute to show if its a hashtag
+      is_URL     = grepl("http[[:alnum:][:punct:]]*",words),  # is it a url
+      words      = gsub("([:lower:])\\1+","\\1\\1", words),   # Contract word length
+      words      = gsub("[[:punct:]]", "", words)             # Remove punctuation
+      ) %>%
+    filter(words != "") %>%
+    left_join(mutate(drug.list, drug_name=str), by=c("words"="str")) %>%
+    left_join(slang.lookup, by="words")
+
+
+
+  # this part runs really slow, alex, can you please take a look at it
+  train.data.clean <- train.data.aug %>%
+    rowwise() %>%
+    mutate(
+      wordsx = ifelse((is.na(drug_name) && !is_hashtag && !is_URL),
+             ifelse (hunspell_check(words),
+                     words,
+                     ifelse(is.na(decode),
+                            words,#hunspell_suggest(word)[[1]][1]
+                            decode 
+                            )
+                     ),
+             words
+             )
+    )
+  
+  # aggregating using the aug dataset, once the previous step is made to work faster, this will need to read from the cleaned dataframe
+  train.data.wide <- train.data.aug %>%
+    group_by(tweet_id) %>%
+    summarise(cleaned_tweet = paste(words, collapse = " "))
+
+
+
+  # Create corpus
+  tweet.corpus <- Corpus(VectorSource(train.data.wide$cleaned_tweet))
+
+
   tweet.corpus <- tm_map(tweet.corpus, stemDocument)
   tdm <- TermDocumentMatrix(tweet.corpus,
                             control = list(
                                            removePunctuation = TRUE,
                                            stopwords = TRUE))
-  
-  
+  require("tm.lexicon.GeneralInquirer")
+
   pos.score <- tm_term_score(tdm, terms_in_General_Inquirer_categories("Positiv")) # this lists each document with number below
-  
-  neg.score <- tm_term_score(tdm,terms_in_General_Inquirer_categories("Negativ")) 
-  
-  
-  cleaned_tweets <- data.frame(cleaned = sapply(tweet.corpus, as.character), 
-                               positive = pos.score, 
-                               negative = neg.score, 
+
+  neg.score <- tm_term_score(tdm,terms_in_General_Inquirer_categories("Negativ"))
+
+
+  cleaned_tweets <- data.frame(stemmed = sapply(tweet.corpus, as.character),
+                               positive = pos.score,
+                               negative = neg.score,
                                stringsAsFactors = FALSE)
-  
-  
-  
-  cleaned_tweets <- cleaned_tweets %>% 
-    mutate(rown = row_number(), 
+
+
+
+  cleaned_tweets <- cleaned_tweets %>%
+    mutate(rown = row_number(),
            positivity = (positive - negative) / (positive + negative + 1))
-  
-  
-  cleaned_tweets <- 
-    cleaned_tweets %>% 
-    inner_join(train.data.new)
+
+
+  cleaned_tweets <-
+    cleaned_tweets %>%
+    inner_join(train.data.new, by="rown")
 
   cleaned_tweets
 }
 
-cleaned_tweets <- clean_tweets(train.data, make_drug_list(), make_slang_lookup())
+cleaned_train <- clean_tweets(train.data, make_drug_list(), make_slang_lookup())
+cleaned_test <- clean_tweets(test.data, make_drug_list(), make_slang_lookup())
+cleaned_binary <- clean_tweets(binary.data, make_drug_list(), make_slang_lookup())
 
-#save(cleaned_tweets,file="../data/cleaned_tweets.Rda")
-
+save(cleaned_train,file="../data/cleaned_train.Rda")
+save(cleaned_test,file="../data/cleaned_test.Rda")
+save(cleaned_binary,file="../data/cleaned_binary.Rda")
 ```
-
