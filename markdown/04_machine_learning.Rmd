@@ -447,3 +447,12 @@ order(preds_new_final[, 2], decreasing = TRUE) %>%
     head(n = 30) %>% 
     map_chr(~new_tweets[.])
 ```
+
+
+## Save models
+
+```{r 04_save_models}
+save(fit_models, file = "../data/models/fit_models.RData")
+save(fit_rf, file = "../data/models/stacked_rf.RData")
+```
+

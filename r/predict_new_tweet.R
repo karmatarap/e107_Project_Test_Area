@@ -7,10 +7,7 @@
 #'
 #' @examples predict_new_tweet("I feel sick today")
 
-
-
-predict_new_tweet <- function(new_tweet, model) {
-    
+predict_new_tweet <- function(new_tweet) {
     new_tweet <- rep(new_tweet, 5)
     
     cleaned_tweet <-
