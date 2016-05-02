@@ -454,5 +454,7 @@ order(preds_new_final[, 2], decreasing = TRUE) %>%
 ```{r 04_save_models}
 save(fit_models, file = "../data/models/fit_models.RData")
 save(fit_rf, file = "../data/models/stacked_rf.RData")
+save(doc_matrix, file = "../data/models/doc_matrix.RData")
+save(data, file = "../data/models/train_data.RData")
 ```
 

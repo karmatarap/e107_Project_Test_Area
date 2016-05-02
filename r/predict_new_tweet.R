@@ -8,7 +8,34 @@
 #' @examples predict_new_tweet("I feel sick today")
 
 predict_new_tweet <- function(new_tweet) {
+    library(plyr)
+    
+    library(caret)
+    library(dplyr)
+    library(hash)
+    library(hunspell)
+    library(magrittr)
+    library(qdap)
+    library(qdapDictionaries)
+    library(readr)
+    library(RTextTools)
+    library(rvest)
+    library(stringr)
+    library(tidyr)
+    library(tm)
+    library(tm.lexicon.GeneralInquirer)
+    library(tm.plugin.sentiment)
+    
     new_tweet <- rep(new_tweet, 5)
+    
+    source("./clean_tweets.R")
+    source("./make_slang_lookup.R")
+    source("./make_drug_list.R")
+    
+    load("../data/models/fit_models.RData")
+    load("../data/models/stacked_rf.RData")
+    load("../data/models/doc_matrix.RData")
+    load("../data/models/train_data.RData")
     
     cleaned_tweet <-
         clean_tweets(data.frame(tweet_id = 1:length(new_tweet), tweet_text = new_tweet),
