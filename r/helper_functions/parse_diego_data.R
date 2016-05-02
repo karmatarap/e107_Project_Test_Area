@@ -16,22 +16,23 @@
 
 parse_diego_data <- function(type) {
     library(dplyr)
+    library(magrittr)
     library(readr)
     library(stringr)
     
     # Load data
     annotation_file <- ifelse(type == "train", 
-                              "../download_tweets/train_tweet_annotations.tsv",
+                              "../data/download_tweets/train_tweet_annotations.tsv",
                        ifelse(type == "test",
-                              "../download_tweets/test_tweet_annotations.tsv",
+                              "../data/download_tweets/test_tweet_annotations.tsv",
                               stop("type should be either 'train' or 'test'"
                                     ))
                        )
     
     tweets_file <- ifelse(type == "train",
-                          "../download_tweets/full_train_tweet_ids.tsv",
+                          "../data/download_tweets/full_train_tweet_ids.tsv",
                    ifelse(type == "test",
-                          "../download_tweets/full_test_tweet_ids.tsv",
+                          "../data/download_tweets/full_test_tweet_ids.tsv",
                           stop("type should be either 'train' or 'test'"))
                    )
     
@@ -66,9 +67,25 @@ parse_diego_data <- function(type) {
                tweet_text = V4
         )
     
-    # Join the two together
+    # Read in the ADR lexicon and rename
+    adr_lexicon <- read_tsv("../data/download_tweets/ADR_lexicon.tsv",
+                            skip = 21, 
+                            col_names = FALSE) %>% 
+        rename(concept_id = X1,
+               concept_name = X2,
+               source = X3)
+    
+    # Join tweets and annotations
     result <- 
         suppressWarnings(left_join(tweets, annotations, by = "text_id"))
+    
+    # Join result with ADR lexicon
+    result <- left_join(result, 
+                        adr_lexicon,
+                        by = c("annotated_text" = "concept_name"))
+    
+    # Select distinct tweets
+    result %<>% distinct(tweet_id)
     
     result
     
