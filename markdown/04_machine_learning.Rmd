@@ -23,7 +23,7 @@ The dataset was prepared in the Data Cleaning section. Here, we combine the vari
 
 The reason for actually splitting the dataset at this stage and not just performing repeated cross validation is that we will train **several models** on the training data and then [use the scores of these models as **inputs** to a new machine learning model](http://www.stat.berkeley.edu/~ledell/docs/dlab_ensembles.pdf). So, in order to perform proper cross validation we should repeat this entire procedure several times.
 
-```{r 03_read_data, warning = FALSE}
+```{r 04_read_data, warning = FALSE}
 tidy_data <- function() {
     # Prepares two tidy datasets: training set and test set
     #
@@ -114,6 +114,7 @@ tidy_data <- function() {
         ifelse(. == "", NA, .)
     
     train_data %<>% distinct(stemmed)
+    test_data %<>% distinct(stemmed)
     
     list(train = train_data, test = test_data)
 }
@@ -142,7 +143,7 @@ Let us first do exploratory data analysis on the tweets.
 
 The first interesting question we have is how **balanced** the dataset is: what is the proportion of adverse event related tweets?
 
-```{r 03_explore_data_imbalance}
+```{r 04_explore_data_imbalance}
 data[[1]] %$%
     table(is_AE) %>% 
     pander
@@ -155,7 +156,7 @@ One very popular method for this is to use **wordclouds**. We first produce two 
 + The right one contains many more "negative" words and words that are obviously related to not feeling good
 + The left wordcloud contains many neutral words, but also many negative words. These negative words, however are not related to an adverse event (consider, e.g. the phrase "depression hurts cymbalta can help")
 
-```{r 03_wordcloud_overall, warning = FALSE}
+```{r 04_wordcloud_overall, warning = FALSE}
 par(mfrow = c(1, 2))
 wordcloud(data[["train"]] %>% filter(is_AE == "No") %$% stemmed, 
           min.freq = 20,
@@ -170,7 +171,7 @@ wordcloud(data[["train"]] %>% filter(is_AE == "Yes") %$% stemmed,
           )
 ```
 
-```{r 03_word_counts}
+```{r 04_word_counts}
 data[[1]] %>% 
     unnest_tokens(word, stemmed) %>% 
     anti_join(stop_words, by = "word") %>% 
@@ -184,7 +185,7 @@ data[[1]] %>%
     ylab("Count")
 ```
 
-```{r 03_word_counts_comparions}
+```{r 04_word_counts_comparions}
 data[[1]] %>% 
     unnest_tokens(word, stemmed) %>% 
     anti_join(stop_words, by = "word") %>%
@@ -262,7 +263,7 @@ The first step consists in preparing the **document term matrix** (DTM). This is
   
 We chose *Term Frequency* here to build the feature vectors. The reason is simple: the other approaches were tried, but using cross validation, Tf performed best.
 
-```{r 03_create document matrix}
+```{r 04_create document matrix}
 doc_matrix <- create_matrix(c(data[["train"]]$stemmed, 
                               data[["test"]]$stemmed),
                             language = "english",
@@ -280,7 +281,7 @@ doc_matrix <- create_matrix(c(data[["train"]]$stemmed,
 
 Now that we have a DTM, we could use it directly as a feature matrix and train a model using, e.g. the `caret` package. The package `RTextTools`, however, has a very convenient datastructure allowing us to put all important data into one **container**. In the folowing code chunk, we put the tweets and the outcome in the container, specifying which data are training data and which data are test data. The option `virgin = FALSE` specifies that we have full information about the outcomes on the test data.
 
-```{r 03_create contained}
+```{r 04_create contained}
 container <- 
     create_container(doc_matrix, 
                      c(data[["train"]]$is_AE, data[["test"]]$is_AE),
@@ -298,7 +299,7 @@ Using the container described above, we can directly train models. Here, we trai
 + SVM: regularized support vector machine
 + TREE: decision tree
 
-```{r}
+```{r 04_train_models}
 fit_models <-
     train_models(container,
                  c("MAXENT", "GLMNET", "SVM", "TREE"),
@@ -309,7 +310,7 @@ fit_models <-
 
 The `RTextTools` package also allows us to make predictions quite easily. The following code chunk produces the results (i.e. predicted probability and predicted label) for each of the four models on the test set:
 
-```{r}
+```{r 04_make_predictions}
 preds <- classify_models(container, fit_models)
 ```
 
@@ -317,7 +318,7 @@ preds <- classify_models(container, fit_models)
 
 The next step is to evaluate the quality of the models. We start with AUC:
 
-```{r}
+```{r 04_plot_auc_mutltiple_models}
 par(mfrow = c(2, 2))
 preds %$% roc(data[["test"]]$is_AE, MAXENTROPY_PROB) %>% plot
 preds %$% roc(data[["test"]]$is_AE, GLMNET_PROB) %>% plot
@@ -334,24 +335,76 @@ Also it automatically creates an **ensemble summary**. This is a useful statisti
 + Coverage tells us on how many percent of the documents two ore more models agree.
 + The recall value corresponds to the recall statistics when restricted to those documents.
 
-```{r}
+```{r 04_make_analytics}
 analytics <- create_analytics(container, preds)
-```
-
-```{r}
 summary(analytics)
-```
-
-```{r}
 create_ensembleSummary(analytics@document_summary)
 ```
 
+## Other inputs
+
+One possibility to add additional features to the models, would be to train a second model and use the result of this model as input to a **stacked model**. This ansatz was tried, but it did not lead to improvement in predictive performance.
+
+The "right" way would actually be to simply column bind these new features to the bag of words matrix. This can be done, but it should also be done using sparse matrices, otherwise, we have to reduce the dimension of the bag of words matrix. This is why we did not use the `tidytext` package here (it was tried, but the performance is worse).
+
+Here, we just outline how a second model can be trained: we do basic preprocessing. Here, we compute the sentiments by using the dataset from the `tidytext` package.
+
+```{r 04_train_other_model}
+preprocess_second <- function(my_data) {
+    sentiments_tweets <- 
+        my_data %>% 
+        unnest_tokens(word, stemmed) %>% 
+        left_join(sentiments %>% mutate(word = stemDocument(word)),
+                   by = "word") %>% 
+        count(tweet_id, sentiment) %>% 
+        mutate(sentiment = str_c("sentiment_", sentiment)) %>% 
+        filter(!is.na(sentiment)) %>% 
+        spread(sentiment, n, fill = 0)
+    
+    res <- left_join(my_data %>% select(tweet_id), 
+                     sentiments_tweets,
+                     by = "tweet_id")
+    
+    res[is.na(res)] <- 0
+    
+    left_join(my_data, res, by = "tweet_id") %>% 
+        mutate(tweet_length = str_length(stemmed))
+    
+}
+
+train_2nd <- preprocess_second(data[[1]]) 
+cv_2nd <- preprocess_second(data[[2]])
+```
+
+Then we use the sentiments, the `URL` and the `tweet_length` as predictors.
+
+```{r 04_train_seconde}
+fit_2nd <- train(is_AE ~ .,
+                 data = train_2nd %>% select(starts_with("sentiment"), 
+                                             URL,
+                                             tweet_length,
+                                             is_AE),
+                 trControl = trainControl(method = "cv",
+                                          number = 5,
+                                          p = 0.75),
+                 method = "rf")
+
+par(mfrow = c(1, 1))
+preds$model_two <- predict(fit_2nd, newdata = cv_2nd, type = "prob")[, 2]
+fit_2nd
+varImp(fit_2nd)
+pROC::roc(cv_2nd$is_AE, preds$model_two) %>% plot
+```
+
+As we saw in the exploratory part of the analysis, `tweet_length` is a good predictor, as well as the positive and negative sentiments.
+
+The area under curve is actually quite good for a model with so few features (just think what we did in terms of dimension reduction: we reduced from roughly 8000 dimensions to roughly 10 dimensions with relatively little reduction in predictive performance!)
 
 ## Aggregating predictions:
 
 The next step is to aggregate the predictions from different models into a final model.
 
-```{r}
+```{r 04_aggregate_predictions}
 preds$results <- data[["test"]]$is_AE
 tr_control <- trainControl(method = "cv",
                            number = 10,
@@ -360,7 +413,7 @@ tr_control <- trainControl(method = "cv",
 
 tune_grid <- expand.grid(mtry = c(1, 2, 3, 4))
 
-fit_rf<- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
+fit_rf <- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
                data = preds,
                method = "rf",
                trControl = tr_control,
@@ -371,13 +424,12 @@ fit_rf<- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
 
 We look at the results:
 
-```{r}
+```{r 04_summarize_aggregated}
 fit_rf
 varImp(fit_rf)
 ```
 
-
-The area under curve is around 85%. 
+The area under curve is around 85%, which is quite high.
 
 # Recent data
 
