@@ -133,3 +133,25 @@ for(i in 1:length(drugs)) {
 
 save(tweets, file = "../data/download_tweets/datacollection.RData")
 ```
+
+For being able to manually annotate some of the new tweets, we bring them in tabular form: we make them into a data frame having two columns:
+
++ tweet_id
++ tweet_text
+
+Furthermore, we save a sample of 400 tweets as Ecel file in order to be able to manually annotate some of the tweets.
+
+```{r 02_save_new_data_excel, eval = FALSE}
+set.seed(123)
+parse_new_tweets <- function(tweets) {
+    tweets_text <- tweets %>% map_chr(~.$text)
+    tweets_id <- tweets %>% map_chr(~.$id)
+    
+    data_frame(tweet_id = tweets_id,
+               tweet_text = tweets_text)
+}
+
+write.xlsx(parse_new_tweets(tweets) %>% sample_n(400),
+           file = "../data/download_tweets/tweets_for_annotation.xlsx")
+```
+

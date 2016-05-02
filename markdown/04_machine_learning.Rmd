@@ -10,9 +10,7 @@ This question is of critical importance to the research program initiated by the
 
 A more refined version of the question above is:
 
-> Are the quantitative measures "precision", "recall", "F-score" and "auc" when the model is evaluated on recent data significantly lower than on the validation set used in the original studies?
-
-A quantitative way of evaluating this question is to train several models on the older dataset and compare the various scores when evaluated on new data.
+> Is the quantitative measure "auc" when the model is evaluated on recent data significantly lower than on the validation set used in the original studies?
 
 ## Data
 
@@ -381,7 +379,6 @@ Then we use the sentiments, the `URL` and the `tweet_length` as predictors.
 ```{r 04_train_seconde}
 fit_2nd <- train(is_AE ~ .,
                  data = train_2nd %>% select(starts_with("sentiment"), 
-                                             URL,
                                              tweet_length,
                                              is_AE),
                  trControl = trainControl(method = "cv",
@@ -433,7 +430,11 @@ The area under curve is around 85%, which is quite high.
 
 # Recent data
 
-The next step consists in checking whether we can reproduce these results with recently collected twitter data.
+The next step consists in checking whether we can reproduce these results with recently collected twitter data. We decided to focus on the bag of words model.
+
+In order for the following code chunk to work, this [hack](https://groups.google.com/forum/embed/#!topic/rtexttools-help/Drqr3Z897Mk) has to be performed.
+
+We plot the receiver-operating characteristic for the new tweets.
 
 ```{r}
 parse_new_tweets <- function() {
@@ -443,63 +444,78 @@ parse_new_tweets <- function() {
     # Args: None
     #
     # Returns: data frame
-    load("../data/download_tweets/datacollection.RData")
-    tweets_text <- map_chr(tweets, ~.$text)
+    source("../r/clean_tweets.R")
+    source("../r/make_drug_list.R")
+    source("../r/make_slang_lookup.R")
+    source("../r/helper_functions/create_matrix_fixed.R")
     
-    # Remove drugs from text
-    drugs <- read_lines("../data/download_tweets/drug_names.txt", skip = 6)
+    cleaned_tweet <- 
+        read.xlsx("../data/download_tweets/tweets_recent_annotated.xlsx",
+                  sheetIndex = 1) %>% 
+        select(tweet_id, tweet_text, is_AE) %>% 
+        clean_tweets(make_drug_list(), make_slang_lookup())
+    
+    #Remove drugs from text
+    drugs <-
+        read_lines("../data/download_tweets/drug_names.txt", skip = 6) %>% 
+        stemDocument()
     drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
     
-    tweets_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
-
-    tweets_text
+    # Remove hashtag symbol
+    cleaned_tweet$hashtag %<>% str_replace_all("#", "")
+    
+    # Change hashtags
+    cleaned_tweet$hashtag %<>% str_to_lower() %>% stemDocument()
+    cleaned_tweet$hashtag <- plyr::revalue(cleaned_tweet$hashtag, c("character(0)" = NA))
+    
+    # Extract drug
+    cleaned_tweet$drug <- 
+        str_c(str_extract_all(cleaned_tweet$stemmed, drug_regex),
+              str_extract_all(cleaned_tweet$hashtag, drug_regex)) %>% 
+        str_replace_all("character\\(0\\)", "")
+    
+    # Remove drug from tweet and hashtag
+    cleaned_tweet$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    
+    cleaned_tweet$hashtag %<>% 
+        str_replace_all(drug_regex, "") %>% 
+        str_replace_all('", ', "") %>% 
+        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
+        str_replace_all('\\"', " ") %>% 
+        ifelse(. == "", NA, .)
+    
+    source("../r/helper_functions/create_matrix_fixed.R")
+    new_tweets_dtm <- 
+        create_matrix(cleaned_tweet$stemmed,
+                      originalMatrix = doc_matrix,
+                      language = "english",
+                      removeNumbers = TRUE,
+                      removePunctuation = TRUE,
+                      toLower = TRUE,
+                      stemWords = TRUE,
+                      stripWhitespace = TRUE,
+                      ngramLength = 1,
+                      minDocFreq = 1,
+                      weighting = tm::weightTf)
+    
+    new_container <- create_container(new_tweets_dtm,
+                                      labels = c(data[[1]]$is_AE, data[[2]]$is_AE),
+                                      trainSize = NULL,
+                                      testSize = 1:nrow(cleaned_tweet),
+                                      virgin = TRUE
+    )
+    
+    preds_new <- classify_models(new_container, fit_models)
+    preds_new_final <- predict(fit_rf, preds_new, type = "prob")[, 2]
+    
+    pROC::roc(cleaned_tweet$is_AE, preds_new_final) %>% 
+    plot()
 }
 
-new_tweets <- parse_new_tweets()
+pred_new_tweets()
 ```
 
-In order for the following code chunk to work, this [hack](https://groups.google.com/forum/embed/#!topic/rtexttools-help/Drqr3Z897Mk) has to be performed. Furthermore, we have to change the encoding to UTF-8.
-
-```{r}
-source("../r/helper_functions/create_matrix_fixed.R")
-n_new_tweets <- 200
-new_tweets_dtm <- 
-    create_matrix(new_tweets %>% head(n = n_new_tweets),
-                  originalMatrix = doc_matrix,
-                  language = "english",
-                  removeNumbers = TRUE,
-                  removePunctuation = TRUE,
-                  toLower = TRUE,
-                  stemWords = TRUE,
-                  stripWhitespace = TRUE,
-                  ngramLength = 1,
-                  minDocFreq = 1,
-                  weighting = tm::weightTf)
-```
-
-
-```{r}
-new_container <- create_container(new_tweets_dtm,
-                                  labels = c(data[[1]]$is_AE, data[[2]]$is_AE),
-                                  trainSize = NULL,
-                                  testSize = 1:n_new_tweets,
-                                  virgin = TRUE
-                                  )
-```
-
-```{r}
-preds_new <- classify_models(new_container, fit_models)
-preds_new_final <- predict(fit_rf, preds_new, type = "prob")
-```
-
-Now we show the ten tweets for which the model predicts the highest probability of having an AE:
-
-```{r}
-order(preds_new_final[, 2], decreasing = TRUE) %>%
-    head(n = 30) %>% 
-    map_chr(~new_tweets[.])
-```
-
+We see that the result is quite a bit worse, but still much better than random. A very likely reason is that our way of manually annotating tweets is different from the researchers in [here](http://diego.asu.edu/Publications/ADRMine.html) and [here](http://diego.asu.edu/downloads/twitter_annotated_corpus/): they had meetings with experts that went very carefully over all tweets. On the other hand, it is not even clear how good our area under curve as annotators would be.
 
 ## Save models
 

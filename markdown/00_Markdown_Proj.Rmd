@@ -43,6 +43,7 @@ library(tm.lexicon.GeneralInquirer)
 library(tm.plugin.sentiment)
 library(twitteR)
 library(wordcloud)
+library(xlsx)
 
 # Set common theme for plotting (we can change that anytime)
 theme_set(theme_bw())
