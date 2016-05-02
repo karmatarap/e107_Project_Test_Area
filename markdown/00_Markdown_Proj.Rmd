@@ -41,6 +41,7 @@ library(tm)
 library(tm.lexicon.GeneralInquirer)
 #install.packages("tm.plugin.sentiment", repos="http://R-Forge.R-project.org", quiet = TRUE)
 library(tm.plugin.sentiment)
+library(twitteR)
 library(wordcloud)
 
 # Set common theme for plotting (we can change that anytime)

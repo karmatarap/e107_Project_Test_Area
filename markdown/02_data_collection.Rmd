@@ -30,16 +30,106 @@ system("python ../data/download_tweets/download_tweets.py ../data/download_tweet
 ```
 
 ## Script for collection new data
-library(twitteR)
-setup_twitter_oauth("cDJ9eqhEXlUPWeY7bV2TbmRNF","FYKaGkwJJx41AM6I4QFn8jBceSzSuQtNaqdMuRAYOB5XluefUY","3607051577-ndbDsuzThV5SYzFUrGQeGcttIDxKXd8RmWOxYY3","UotKyPNTDAcL4etQ9gBs5SK31CDoiFKufxMwY2GXUMagR")
 
+In the following, we download tweets containing the drug names listed below. **We should add here when the actual data collection was performed**.
 
-drugs<-c("humira", "dronedarone", "lamictal", "pradaxa", "paxil","zoledronic acid","trazodone","enbrel","cymbalta","quetiapine","cipro","lozenge","dabigatran","olanzapine","fluoxetine","vyvanse","seroquel","fosamax","paroxetine"," nicotine","effexor","prozac","tysabri","rivaroxaban","baclofen","lamotrigine","venlafaxine","apixaban","avelox","levaquin","zyprexa","duloxetine","ofloxacin","geodon","victoza","metoprolol","viibryd","pristiq","nesina","factive","gamma-aminobutyric acid","sabril","livalo","denosumab","bystolic","xarelto","floxin","boniva","saphris","ziprasidone","memantine","namenda","latuda","fycompa","canagliflozin","zometa","etanercept","lurasidone","alendronate","linagliptin","effient","vimpat","eliquis","liraglutide","pregabalin","onglyza","nicotrol inhaler", "lyrica","invokana","commitlozenge","actonel","nicotrolinhaler","synthroid","albuterol","nasonex","spiriva","suboxone","nexium","januvia","valsartan","tamiflu")
+```{r 02_collect_new_tweets, eval = FALSE}
+setup_twitter_oauth("consumer_key", "consumer_secret", 
+                    "access_token", "access_secret")
+
+drugs<-c("humira", 
+         "dronedarone",
+         "lamictal",
+         "pradaxa",
+         "paxil",
+         "zoledronic acid",
+         "trazodone",
+         "enbrel",
+         "cymbalta",
+         "quetiapine",
+         "cipro",
+         "lozenge",
+         "dabigatran",
+         "olanzapine",
+         "fluoxetine",
+         "vyvanse",
+         "seroquel",
+         "fosamax",
+         "paroxetine",
+         "nicotine",
+         "effexor",
+         "prozac",
+         "tysabri",
+         "rivaroxaban",
+         "baclofen",
+         "lamotrigine",
+         "venlafaxine",
+         "apixaban",
+         "avelox",
+         "levaquin",
+         "zyprexa",
+         "duloxetine",
+         "ofloxacin",
+         "geodon",
+         "victoza",
+         "metoprolol",
+         "viibryd",
+         "pristiq",
+         "nesina",
+         "factive",
+         "gamma-aminobutyric acid",
+         "sabril",
+         "livalo",
+         "denosumab",
+         "bystolic",
+         "xarelto",
+         "floxin",
+         "boniva",
+         "saphris",
+         "ziprasidone",
+         "memantine",
+         "namenda",
+         "latuda",
+         "fycompa",
+         "canagliflozin",
+         "zometa",
+         "etanercept",
+         "lurasidone",
+         "alendronate",
+         "linagliptin",
+         "effient",
+         "vimpat",
+         "eliquis",
+         "liraglutide",
+         "pregabalin",
+         "onglyza",
+         "nicotrol inhaler",
+         "lyrica",
+         "invokana",
+         "commitlozenge",
+         "actonel",
+         "nicotrolinhaler",
+         "synthroid",
+         "albuterol",
+         "nasonex",
+         "spiriva",
+         "suboxone",
+         "nexium",
+         "januvia",
+         "valsartan",
+         "tamiflu"
+         )
 
 tweets = list()
-for(i in 1:length(drugs)){
-  result<-searchTwitter(drugs[i],n=1500, lang="en", since="2016-01-01")
+for(i in 1:length(drugs)) {
+  result <- searchTwitter(drugs[i],
+                          n = 1500,
+                          lang = "en",
+                          since = "2016-01-01")
   Sys.sleep(60)
   tweets <- c(tweets,result)
   tweets <- unique(tweets)
 }
+
+save(tweets, file = "../data/download_tweets/datacollection.RData")
+```
