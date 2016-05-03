@@ -22,7 +22,7 @@ For data confidentiality reasons, the researchers had not made the individual tw
 
 The download of the dataset is not executed by default.
 
-```{r 02_download_data, include = FALSE}
+```{r 02_download_data, eval = FALSE}
 # Download dataset; not executed by default
 system("python ../data/download_tweets/download_tweets.py ../data/download_tweets/train_tweet_ids.tsv ../data/download_tweets/full_train_tweet_ids.tsv")
 system("python ../data/download_tweets/download_tweets.py ../data/download_tweets/test_tweet_ids.tsv ../data/download_tweets/full_test_tweet_ids.tsv")
@@ -139,7 +139,7 @@ For being able to manually annotate some of the new tweets, we bring them in tab
 + tweet_id
 + tweet_text
 
-Furthermore, we save a sample of 400 tweets as Ecel file in order to be able to manually annotate some of the tweets.
+Furthermore, we save a sample of 400 tweets as Excel file in order to be able to manually annotate some of the tweets.
 
 ```{r 02_save_new_data_excel, eval = FALSE}
 set.seed(123)

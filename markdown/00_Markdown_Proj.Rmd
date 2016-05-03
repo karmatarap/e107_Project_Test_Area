@@ -49,16 +49,16 @@ library(xlsx)
 theme_set(theme_bw())
 ```
 
-```{r 00_motivation, child = "01_motivation.Rmd", include = FALSE}
+```{r 00_motivation, child = "01_motivation.Rmd"}
 ```
 
-```{r 00_data_collection, child = "02_data_collection.Rmd", include = FALSE}
+```{r 00_data_collection, child = "02_data_collection.Rmd"}
 ```
 
-```{r 00_data_cleaning, child = "03_data_cleaning.Rmd", include = FALSE}
+```{r 00_data_cleaning, child = "03_data_cleaning.Rmd"}
 ```
 
-```{r 00_machine_learning, child = "04_machine_learning.Rmd", include = FALSE}
+```{r 00_machine_learning, child = "04_machine_learning.Rmd"}
 ```
 
 ```{r 00_comorbidity, child = "05_comorbidity.Rmd", include = FALSE}

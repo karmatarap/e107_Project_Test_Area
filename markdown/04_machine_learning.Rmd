@@ -53,7 +53,7 @@ tidy_data <- function() {
                   binary_data %>% slice(binary_train_ind)
                   ) %>% 
         select(tweet_id, user_id, stemmed, positive, 
-               negative, hashtag, URL, is_AE) %>% 
+               negative, hashtag, URL, drug, is_AE) %>% 
         distinct(tweet_id)
     
     test_data <- 
@@ -61,56 +61,13 @@ tidy_data <- function() {
                   binary_data %>% slice(-binary_train_ind)
                   )  %>% 
         select(tweet_id, user_id, stemmed, positive, 
-               negative, hashtag, URL, is_AE)
+               negative, hashtag, URL, drug, is_AE)
     
+    # Convert to factor
     train_data$is_AE %<>% as.factor
     test_data$is_AE %<>% as.factor
-        
-    # Remove drugs from text
-    drugs <-
-        read_lines("../data/download_tweets/drug_names.txt", skip = 6) %>% 
-        stemDocument()
-    drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
     
-    # Remove hashtag symbol
-    train_data$hashtag %<>% str_replace_all("#", "")
-    test_data$hashtag %<>% str_replace_all("#", "")
-    
-    # Change hashtags
-    train_data$hashtag %<>% str_to_lower() %>% stemDocument()
-    test_data$hashtag %<>% str_to_lower() %>% stemDocument()
-    
-    train_data$hashtag <- plyr::revalue(train_data$hashtag, c("character(0)" = NA))
-    test_data$hashtag <- plyr::revalue(test_data$hashtag, c("character(0)" = NA))
-    
-     # Extract drug
-    train_data$drug <- 
-        str_c(str_extract_all(train_data$stemmed, drug_regex),
-              str_extract_all(train_data$hashtag, drug_regex)) %>% 
-        str_replace_all("character\\(0\\)", "")
-    test_data$drug <- 
-        str_c(str_extract_all(test_data$stemmed, drug_regex),
-              str_extract_all(test_data$hashtag, drug_regex)) %>% 
-        str_replace_all("character\\(0\\)", "")
-    
-    # Remove drug from tweet and hashtag
-    train_data$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
-    test_data$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
-    
-    train_data$hashtag %<>% 
-        str_replace_all(drug_regex, "") %>% 
-        str_replace_all('", ', "") %>% 
-        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
-        str_replace_all('\\"', " ") %>% 
-        ifelse(. == "", NA, .)
-    
-    test_data$hashtag %<>% 
-        str_replace_all(drug_regex, "") %>% 
-        str_replace_all('", ', "") %>% 
-        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
-        str_replace_all('\\"', " ") %>% 
-        ifelse(. == "", NA, .)
-    
+    # Distinct tweet texts to avoid overfitting
     train_data %<>% distinct(stemmed)
     test_data %<>% distinct(stemmed)
     
@@ -131,8 +88,8 @@ positive         | Positive sentiments
 negative         | Negative sentiments
 hastag           | character of hashtags
 URL              | does the tweet contain a URLS
+drug             | drug names
 is_AE            | Is the tweet related to an adverse event
-drug             | names of drugs in tweet
 
 
 ## Exploratory data analysis
@@ -234,21 +191,6 @@ data[[1]] %>%
                        labels = c("No", "Yes"))
 ```
 
-
-```{r 04_ngrams}
-data[[1]] %>% 
-    unnest_tokens(word, stemmed, token = "regex", "[a-z]{3}") %>% 
-    count(tweet_id, is_AE) %>% 
-    ggplot(aes(x = n, color = is_AE)) +
-    geom_density() +
-    xlab("Number of words per tweet") +
-    scale_color_manual(values = c("Blue", "Red"),
-                       name = "AE",
-                       labels = c("No", "Yes"))
-```
-
-
-## Modeling
 ## Documenttermmatrix
 
 The first step consists in preparing the **document term matrix** (DTM). This is a matrix whose columns corresponds to features of the text. 
@@ -279,7 +221,7 @@ doc_matrix <- create_matrix(c(data[["train"]]$stemmed,
 
 Now that we have a DTM, we could use it directly as a feature matrix and train a model using, e.g. the `caret` package. The package `RTextTools`, however, has a very convenient datastructure allowing us to put all important data into one **container**. In the folowing code chunk, we put the tweets and the outcome in the container, specifying which data are training data and which data are test data. The option `virgin = FALSE` specifies that we have full information about the outcomes on the test data.
 
-```{r 04_create contained}
+```{r 04_create container}
 container <- 
     create_container(doc_matrix, 
                      c(data[["train"]]$is_AE, data[["test"]]$is_AE),
@@ -436,8 +378,8 @@ In order for the following code chunk to work, this [hack](https://groups.google
 
 We plot the receiver-operating characteristic for the new tweets.
 
-```{r}
-parse_new_tweets <- function() {
+```{r 04_analyse_new_tweets}
+pred_new_tweets <- function() {
     # Prepares new tweets into a form that is suitable for being fed
     # into the classifiers
     #
@@ -455,34 +397,6 @@ parse_new_tweets <- function() {
         select(tweet_id, tweet_text, is_AE) %>% 
         clean_tweets(make_drug_list(), make_slang_lookup())
     
-    #Remove drugs from text
-    drugs <-
-        read_lines("../data/download_tweets/drug_names.txt", skip = 6) %>% 
-        stemDocument()
-    drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
-    
-    # Remove hashtag symbol
-    cleaned_tweet$hashtag %<>% str_replace_all("#", "")
-    
-    # Change hashtags
-    cleaned_tweet$hashtag %<>% str_to_lower() %>% stemDocument()
-    cleaned_tweet$hashtag <- plyr::revalue(cleaned_tweet$hashtag, c("character(0)" = NA))
-    
-    # Extract drug
-    cleaned_tweet$drug <- 
-        str_c(str_extract_all(cleaned_tweet$stemmed, drug_regex),
-              str_extract_all(cleaned_tweet$hashtag, drug_regex)) %>% 
-        str_replace_all("character\\(0\\)", "")
-    
-    # Remove drug from tweet and hashtag
-    cleaned_tweet$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
-    
-    cleaned_tweet$hashtag %<>% 
-        str_replace_all(drug_regex, "") %>% 
-        str_replace_all('", ', "") %>% 
-        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
-        str_replace_all('\\"', " ") %>% 
-        ifelse(. == "", NA, .)
     
     source("../r/helper_functions/create_matrix_fixed.R")
     new_tweets_dtm <- 
@@ -499,14 +413,17 @@ parse_new_tweets <- function() {
                       weighting = tm::weightTf)
     
     new_container <- create_container(new_tweets_dtm,
-                                      labels = c(data[[1]]$is_AE, data[[2]]$is_AE),
+                                      labels = c(data[[1]]$is_AE, data[[2]]$is_AE,
+                                                 cleaned_tweet$is_AE),
                                       trainSize = NULL,
                                       testSize = 1:nrow(cleaned_tweet),
-                                      virgin = TRUE
+                                      virgin = FALSE
     )
-    
     preds_new <- classify_models(new_container, fit_models)
     preds_new_final <- predict(fit_rf, preds_new, type = "prob")[, 2]
+    
+    analytics <- create_analytics(new_container, preds_new)
+    print(summary(analytics))
     
     pROC::roc(cleaned_tweet$is_AE, preds_new_final) %>% 
     plot()

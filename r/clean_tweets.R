@@ -106,5 +106,34 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
         cleaned_tweets %>%
         inner_join(train.data.new, by="rown")
     
+    #Remove drugs from text
+    drugs <-
+        read_lines("../data/download_tweets/drug_names.txt", skip = 6) %>% 
+        stemDocument()
+    drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
+    
+    # Remove hashtag symbol
+    cleaned_tweets$hashtag %<>% str_replace_all("#", "")
+    
+    # Change hashtags
+    cleaned_tweets$hashtag %<>% str_to_lower() %>% stemDocument()
+    cleaned_tweets$hashtag <- plyr::revalue(cleaned_tweets$hashtag, c("character(0)" = NA))
+    
+    # Extract drug
+    cleaned_tweets$drug <- 
+        str_c(str_extract_all(cleaned_tweets$stemmed, drug_regex),
+              str_extract_all(cleaned_tweets$hashtag, drug_regex)) %>% 
+        str_replace_all("character\\(0\\)", "")
+    
+    # Remove drug from tweet and hashtag
+    cleaned_tweets$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+    
+    cleaned_tweets$hashtag %<>% 
+        str_replace_all(drug_regex, "") %>% 
+        str_replace_all('", ', "") %>% 
+        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
+        str_replace_all('\\"', " ") %>% 
+        ifelse(. == "", NA, .)
+    
     cleaned_tweets
 }
