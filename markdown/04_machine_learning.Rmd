@@ -1,7 +1,6 @@
 # Predicting adverse events
 
 In this section, we train a machine learning with the goal of being able to predict adverse events from tweets. In a second step, we apply this machine learning to recent twitter data. 
-
 The question we ask here is the following:
 
 > If we train a model for predicting adverse drug reaction from Twitter data generated in 2013, are the results still valid nowadays?
@@ -16,10 +15,12 @@ A more refined version of the question above is:
 
 The dataset was prepared in the Data Cleaning section. Here, we combine the various datasets and split into a training and validation set:
 
-+ The dataset with detailed annotation comes split into a training and a test set. We use this splitting.
-+ The binary annotated dataset is split into a training (75%) and cross-validation (25%) set
++ The dataset from [Nikfarjam et al] comes split into a training and a test set. We use this splitting.
++ The binary annotated dataset from [Abeed Sarker and Graciela Gonzalez] is split into a training (75%) and cross-validation (25%) set
 
-The reason for actually splitting the dataset at this stage and not just performing repeated cross validation is that we will train **several models** on the training data and then [use the scores of these models as **inputs** to a new machine learning model](http://www.stat.berkeley.edu/~ledell/docs/dlab_ensembles.pdf). So, in order to perform proper cross validation we should repeat this entire procedure several times.
+The reason for actually splitting the dataset at this stage and not just performing repeated cross validation is that we will train **several models** on the training data and then [use the scores of these models as **inputs** to a new machine learning model](http://www.stat.berkeley.edu/~ledell/docs/dlab_ensembles.pdf). 
+
+Actually, to perform proper cross validation we should repeat this entire procedure several times.
 
 ```{r 04_read_data, warning = FALSE}
 tidy_data <- function() {
@@ -106,10 +107,10 @@ data[[1]] %$%
 
 So there is quite a big imbalance: most tweets containing one of the drug names are not related to an adverse event.
 
-One very popular method for this is to use **wordclouds**. We first produce two wordclouds: one (in black) with tweets not related to an AE and one (in green) related to adverse events. We see that there are interesting differences between the two wordclouds.
+One very popular method for EDA in text mining is to use **wordclouds**. We first produce two wordclouds: one (in black) with tweets not related to an AE and one (in green) related to adverse events. We see that there are interesting differences between the two wordclouds.
 
-+ The right one contains many more "negative" words and words that are obviously related to not feeling good
-+ The left wordcloud contains many neutral words, but also many negative words. These negative words, however are not related to an adverse event (consider, e.g. the phrase "depression hurts cymbalta can help")
++ The right one contains many more "negative" words and words that are obviously related to not feeling well
++ The left wordcloud contains many neutral words, but also many negative words. These negative words, however are not related to an adverse event (consider, e.g. the tweet "depression hurts cymbalta can help")
 
 ```{r 04_wordcloud_overall, warning = FALSE}
 par(mfrow = c(1, 2))
@@ -125,6 +126,8 @@ wordcloud(data[["train"]] %>% filter(is_AE == "Yes") %$% stemmed,
           colors = "green"
           )
 ```
+
+Next, we show the 30 most frequenz words, both for tweets related to ADRs and tweets not related to ADRs.
 
 ```{r 04_word_counts}
 data[[1]] %>% 
@@ -156,11 +159,11 @@ data[[1]] %>%
     ylab("Count")
 ```
 
-We see quite a big difference in sentiments between tweets corresponding to adverse events and those not corresponding to adverse events:
+Next, we take the `sentiments` data from the `tidytext` package to do sentiment analysis. We see quite a big difference in sentiments between tweets corresponding to adverse events and those not corresponding to adverse events:
 
 + *Trust* is much lower in AE tweets
-+ *Negative* is much lower in AE tweets
-+ *Positive* sentiments occur with higher frequency in non-AE tweets
++ *Negative* is much higher in AE tweets
++ *Positive* sentiments occur with lower frequency in AE tweets
 
 ```{r 04_sentiments}
 data[[1]] %>% 
@@ -191,7 +194,11 @@ data[[1]] %>%
                        labels = c("No", "Yes"))
 ```
 
-## Documenttermmatrix
+## First model: vector space model
+
+We first train a model using the well known vector space model. In this model, the features correspond to **word count** (or other similarly constructed features).
+
+### Document term matrx
 
 The first step consists in preparing the **document term matrix** (DTM). This is a matrix whose columns corresponds to features of the text. 
 
@@ -217,9 +224,9 @@ doc_matrix <- create_matrix(c(data[["train"]]$stemmed,
                             weighting = tm::weightTf)
 ```
 
-## Container
+### Container
 
-Now that we have a DTM, we could use it directly as a feature matrix and train a model using, e.g. the `caret` package. The package `RTextTools`, however, has a very convenient datastructure allowing us to put all important data into one **container**. In the folowing code chunk, we put the tweets and the outcome in the container, specifying which data are training data and which data are test data. The option `virgin = FALSE` specifies that we have full information about the outcomes on the test data.
+Now that we have a DTM, we could use it directly as a feature matrix and train a model using, e.g. the `caret` package. The package `RTextTools`, however, has a very convenient datastructure allowing us to put all important data into one **container**. The main advantage is that we can keep using sparse matrices as opposed to e.g. the `tidytext` package. In the folowing code chunk, we put the tweets and the outcome in the container, specifying which data are training data and which data are test data. The option `virgin = FALSE` specifies that we have full information about the outcomes on the test data.
 
 ```{r 04_create container}
 container <- 
@@ -230,7 +237,7 @@ container <-
                      virgin = FALSE)
 ```
 
-## Model training
+### Model training
 
 Using the container described above, we can directly train models. Here, we train four different models (training the other models is quite slow and does not significantly improve the performance) using the standard parameters:
 
@@ -270,7 +277,7 @@ We see that the regularized logistic regression performs best with quite a high 
 
 Next, the `RTextTools` package allows us to extract important other measures as well quite easily using the `create_analytics` command. This gives us the precision, recall and f-score for each of the models (recall that the f-score is a weighted average of the precision and the recall).
 
-Also it automatically creates an **ensemble summary**. This is a useful statistics about the combined performance of all four models. The line corresponding to `n >= 2` means the following:
+Also it automatically creates an **ensemble summary**. This is a useful statistics about the combined performance of all four models. The line corresponding to, e.g. `n >= 2` means the following:
 
 + Coverage tells us on how many percent of the documents two ore more models agree.
 + The recall value corresponds to the recall statistics when restricted to those documents.
@@ -278,14 +285,15 @@ Also it automatically creates an **ensemble summary**. This is a useful statisti
 ```{r 04_make_analytics}
 analytics <- create_analytics(container, preds)
 summary(analytics)
-create_ensembleSummary(analytics@document_summary)
 ```
+
+From this, it seems quite plausible that stacking these models can make sense.
 
 ## Other inputs
 
 One possibility to add additional features to the models, would be to train a second model and use the result of this model as input to a **stacked model**. This ansatz was tried, but it did not lead to improvement in predictive performance.
 
-The "right" way would actually be to simply column bind these new features to the bag of words matrix. This can be done, but it should also be done using sparse matrices, otherwise, we have to reduce the dimension of the bag of words matrix. This is why we did not use the `tidytext` package here (it was tried, but the performance is worse).
+The "right" way would actually be to simply column bind these new features to the bag of words matrix. This can be done, but it should also be done using sparse matrices, otherwise, we have to reduce the dimension of the bag of words matrix (i.e. use fewert words as features). This is why we did not use the `tidytext` package here (it was tried, but the performance is worse if the number of terms is restricted).
 
 Here, we just outline how a second model can be trained: we do basic preprocessing. Here, we compute the sentiments by using the dataset from the `tidytext` package.
 
@@ -341,7 +349,7 @@ The area under curve is actually quite good for a model with so few features (ju
 
 ## Aggregating predictions:
 
-The next step is to aggregate the predictions from different models into a final model.
+The next step is to aggregate the predictions from different models into a final model. We chose just the models based on the bag of words features (adding the result from the second model above did not significantly improve the area under curve and thus was not included).
 
 ```{r 04_aggregate_predictions}
 preds$results <- data[["test"]]$is_AE
@@ -425,6 +433,13 @@ pred_new_tweets <- function() {
     analytics <- create_analytics(new_container, preds_new)
     print(summary(analytics))
     
+    par(mfrow = c(2, 2))
+    preds_new %$% pROC::roc(cleaned_tweet$is_AE, MAXENTROPY_PROB) %>% plot
+    preds_new %$% pROC::roc(cleaned_tweet$is_AE, GLMNET_PROB) %>% plot
+    preds_new %$% pROC::roc(cleaned_tweet$is_AE, SVM_PROB) %>% plot
+    preds_new %$% pROC::roc(cleaned_tweet$is_AE, TREE_PROB) %>% plot
+    
+    par(mfrow = c(1, 1))
     pROC::roc(cleaned_tweet$is_AE, preds_new_final) %>% 
     plot()
 }

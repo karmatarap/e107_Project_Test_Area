@@ -4,28 +4,27 @@ Adverse Drug Reactions (ADRs) are harmful effects caused by the intake of a medi
 
 Thus, the detection of these events plays a significant role for improving human health. The assessment and detection of adverse reactions for prescription drugs starts at a clinical trial level and continues after market release through national reporting tools that allow manufacturers and the public to report on ADRs. However, due to the limitations of clinical trials or the voluntary nature of public reporting tools, the actual detection of the adverse reactions is incomplete and not timely.
 
-With the massive increase of social media usage over the past years, where patients share information about diseases, symptoms and treatments, social networks can represent an alternative source to identify ADRs from user generated data. Include statistics from Pew Research
+With the [massive increase of social media](http://www.pewinternet.org/fact-sheets/social-networking-fact-sheet/) usage over the past years, where patients share information about diseases, symptoms and treatments, social networks can represent an alternative source to identify ADRs from user generated data.
 
 However, while social media offers new opportunities for health monitoring, it also brings about its challenges. Due to its free-text nature, the data is rather unstructured and informal, containing a high level of misspellings or colloquialisms which makes natural language processing and algorithm applications difficult. Identifying ADRs terms is an additional challenge because often the information published can be irrelevant to an actual treatment or personal experience or might be rather commercial information about a drug. Also, the effects of a drug mentioned can either be an adverse reaction or a beneficial effect, as well as the diversity of informal terms used are hard to match with adverse effects lexicon terms.  
  
 ## Project goals
 
-While different social platforms are used to exchange health information, such as communities, blogs, forums etc. for this project we chose to focus on twitter as a source for health-related information. Add current statistics for twitter usage
+While different social platforms are used to exchange health information, such as communities, blogs, forums etc. for this project we chose to focus on twitter as a source for health-related information. There are [1.3 billion registered users and 310 million people that use Twitter with 120 million unique visitors per month](https://about.twitter.com/company).
 
-In the first place we wanted to investigate the possibilities for retrieving twitter data containing drug related information. 
-Once data was found, we wanted to analyse what proportion of the retrieved tweets that were relevant for a further analysis of ADRs, and thus, investigated which proportion of the drug related tweets also mentioned an adverse reaction.
+In the first place we wanted to investigate the possibilities for retrieving twitter data containing drug related information.
 
 Considering the challenges of unstructured data we wanted to find ways of dealing with spellcheck, slang words and match with ADR lexicon terms, extracting hashtags and URLs. 
 
-And lastly, we wanted investigate whether machine learning techniques applied to older data to classify if a tweet contains an ADR can also be applied to current data. This question is of critical importance because if the language in social media changes so drastically over few years that models trained on old data are not valid anymore, it  would mean that experts have to annotate quite large amounts of tweets on a regular basis to have valid training samples.
+And lastly, we wanted investigate whether machine learning techniques trained on older data to predict an ADR can also be applied to current data. This question is of critical importance because if the language or content in social media change so drastically over few years that models trained on old data are not valid anymore, it  would mean that experts have to annotate quite large amounts of tweets on a regular basis to have valid training samples.
 
 ## Methodology
 
 #### Data Collection
 
 For the analysis we used both secondary as well as primary twitter data. 
-As secondary data we used two twitter corpus collected from the paper by [Nikfarjam et al: 
-Pharmacovigilance from social media: mining adverse drug reaction mentions using sequence labeling with word embedding cluster features](http://www.ncbi.nlm.nih.gov/pubmed/25755127) and the second one from [Abeed Sarker and Graciela Gonzalez. Portable automatic text classification for adverse drug reaction detection via multi-corpus training. Journal of Biomedical Informatics. 53 (2015) 196-207.](http://diego.asu.edu/Publications/ADRClassify.html).
+As secondary data we used two twitter corpora collected from the paper by [Nikfarjam et al: 
+Pharmacovigilance from social media: mining adverse drug reaction mentions using sequence labeling with word embedding cluster features](http://www.ncbi.nlm.nih.gov/pubmed/25755127) and from [Abeed Sarker and Graciela Gonzalez. Portable automatic text classification for adverse drug reaction detection via multi-corpus training. Journal of Biomedical Informatics. 53 (2015) 196-207.](http://diego.asu.edu/Publications/ADRClassify.html).
 This data contained tweet ids and tweet annotations. We could then use the tweet id to retrieve the actual tweets using a phyton script provided by the authors. 
 
 To collect primary twitter data the same drug list was used as in the paper by Nikfarjam et al. All tweets in english starting from January 2016 containing the listed drug names have been retrieved using Twitter’s application programming interface and the R twitterR package.  

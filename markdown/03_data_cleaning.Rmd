@@ -2,7 +2,14 @@
 
 ## Read the data
 
-In the following, we define a function that reads the corpus which has detailed annotations: for each tweet it contains detailed information about the adverse event:
+In the following, we define a function that reads the corpus from [Nikfarjam et al]: for each tweet it contains detailed information about the adverse event. 
+
+The steps consists of
+
+1. Parse the annotation file and label the columns
+2. Read the dataset obtained from executing the Python script mentioned in the previous section: 
+3. Read the Adverse Drug reaction lexicon
+4. combine all results
 
 ```{r 03_parse_diego_data}
 #' Parse downloaded annotated data
@@ -17,6 +24,7 @@ In the following, we define a function that reads the corpus which has detailed 
 #'
 #' @examples parse_diego_data("train")
 #' @import dplyr, magrittr, readr, stringr
+
 parse_diego_data <- function(type) {
     # Load data
     annotation_file <-
@@ -93,7 +101,7 @@ parse_diego_data <- function(type) {
 }
 ```
 
-Next, we define a similar function that reads in the binary annotated file:
+Next, we define a similar function that reads in the data from [Abeed Sarker and Graciela Gonzalez]. Reading this dataset is easier and just consists of reading the dataset obtained from executing the Python script.
 
 ```{r 03_parse_binary_annotations}
 #' Parse binary data
@@ -138,30 +146,26 @@ parse_binary_data <- function(type) {
 }
 ```
 
-Now that we have defined the functions reading in the data, let us take a first look at them to get a feeling:
+Now that we have defined the functions reading in the data, let us take a first look at them to get a feeling.
+
+## First look at the data
 
 ```{r 03_first_look_at_data}
-# For interactive session, will remove on final
-# Load all required libraries
-
-# libs <- c("dplyr", "readr", "stringr","purrr","tidyr","tm","qdap","qdapDictionaries","splitstackshape","hunspell","rvest","knitr")
-# lapply(libs, require, character.only = TRUE)
-
 # Read in the training data
 train.data <- parse_diego_data("train")
 test.data <- parse_diego_data("test")
 binary.data <- parse_binary_data()
 ```
 
-# First look at the data
+We can see from the tweets that we might want to extract the drug names "humira" to use as a feature in future models. Even though the researchers have annotated the drug names on this dataset, this should help us classify non-annotated tweets. This could serve the puropse of **automatically** creating new training sets:
 
-We can see from the tweets that we might want to extract the drug names "humira" to use as a feature in future models. Even though the researchers have annotated the drug names on this dataset, this should help us classify non-annotated tweets.
+If we want to predict ADRs on new drugs, our trained model should not have the drug name we are interested in included as feature. For the puropse of generating a new training sample, this could, however, be a good strategy, although one has to be careful with bias.
 
 ```{r 03_example_1}
 train.data$tweet_text[709] 
 ```
 
-Although our sample of tweets, for the most part, were correctly spelt. We still wanted to run it through a spell checker to ensure our models were robust.
+Although our sample of tweets, for the most part, were correctly spelt, we still wanted to run it through a spell checker to ensure our models were robust.
 
 ```{r 03_example_2}
 train.data$tweet_text[318]
@@ -174,6 +178,7 @@ train.data$tweet_text[751]
 ```
 
 A further challenge we see is that there is sometimes repeats of characters to show emphasis. This will need to be corrected also.
+
 ```{r 03_example_4}
 train.data$tweet_text[807]
 ```
@@ -184,7 +189,7 @@ The drug names were downloaded from [here](https://www.nlm.nih.gov/research/umls
 
 These are stored as `./data/dictionaries/RXNCONSO.RFF`.
 
-We create a function that makes a list of drugs so we can identify tweets containing a known drug name, as well as ignore them from spell checking.
+We create a function that makes a list of drugs so we can identify tweets containing a known drug name, as well as ignore them from spell checking. We restrict to brand names (BN) and generics / ingredients (IN)
 
 ```{r 03_create_drug_list}
 make_drug_list <- function() {
@@ -341,7 +346,6 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
                             control = list(
                                            removePunctuation = TRUE,
                                            stopwords = TRUE))
-  require("tm.lexicon.GeneralInquirer")
 
   pos.score <- tm_term_score(tdm, terms_in_General_Inquirer_categories("Positiv")) # this lists each document with number below
 

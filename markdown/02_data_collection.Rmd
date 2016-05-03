@@ -31,7 +31,7 @@ system("python ../data/download_tweets/download_tweets.py ../data/download_tweet
 
 ## Script for collection new data
 
-In the following, we download tweets containing the drug names listed below. **We should add here when the actual data collection was performed**.
+In the following, we download tweets containing the drug names listed below. The data collection was performed on April 21.
 
 ```{r 02_collect_new_tweets, eval = FALSE}
 setup_twitter_oauth("consumer_key", "consumer_secret", 
@@ -155,3 +155,4 @@ write.xlsx(parse_new_tweets(tweets) %>% sample_n(400),
            file = "../data/download_tweets/tweets_for_annotation.xlsx")
 ```
 
+Due to problems with encoding, we had to erase 5 tweets from the Excel file leaving us with 395 tweets for manual annotation.
