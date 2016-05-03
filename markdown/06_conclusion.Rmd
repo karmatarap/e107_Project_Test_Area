@@ -1,1 +1,25 @@
 # Conclusion
+
+## Predicting Adverse events from tweets
+
+With quite sophisticated data cleaning techniques and stacking of machine learning models, we were able to reproduce the order of predictive performance obtained in previous related work.
+
+When the model was applied to new data, the predictive performance dropped significantly, but it was still highly significantly (statistically and practically) above random performance. One reason for this is that we do not have the same experience and methodology of previous researchers for annotating the tweets.
+
+Other possible reasons are that tweets containing drug names have changed. There are some plausible explanaitions in what way tweets change over time:
+
++ The number of advertisements grows in proportion
++ Slang words change
++ The use of twitter overall changes
+
+Answering what exactly caused the predictive performance to drop is another interesting project. A first step in this direction would be to compute our accuracy for manually annotated tweets, i.e. manually annotate some tweets that are in the training and validation sets and compute agreement.
+
+Next steps would be to do simple exploratory analyses on the new data set:
+
++ Are the most frequent words the same?
++ Does the sentiment profile look similar?
++ Are there more names of URLs contained in the more recent dataset?
++ ...
+
+## Comorbidity
+
