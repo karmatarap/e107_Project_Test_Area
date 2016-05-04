@@ -159,7 +159,7 @@ binary.data <- parse_binary_data()
 
 We can see from the tweets that we might want to extract the drug names "humira" to use as a feature in future models. Even though the researchers have annotated the drug names on this dataset, this should help us classify non-annotated tweets. This could serve the puropse of **automatically** creating new training sets:
 
-If we want to predict ADRs on new drugs, our trained model should not have the drug name we are interested in included as feature. For the puropse of generating a new training sample, this could, however, be a good strategy, although one has to be careful with bias.
+If we want to predict ADRs on new drugs, our trained model should not have the drug name we are interested in included as feature. For the purpose of generating a new training sample, this could, however, be a good strategy, although one has to be careful with bias.
 
 ```{r 03_example_1}
 train.data$tweet_text[709] 
@@ -287,10 +287,8 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
     mutate(rown = row_number())
   
   
-  
-  
   # Reshaping the data
-  # Transposing to get one word per row using the strsplitstack package. This allows us to preserve emoticons
+  # Transposing to get one word per row using unnest without removing punctuation. This allows us to preserve emoticons
   train.data.long <- train.data.new %>%
     select(tweet_id, tweet_text) %>%
     mutate(words = strsplit(as.character(tolower(tweet_text))," ")) %>%
@@ -298,7 +296,7 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
     group_by(tweet_id) %>%
     mutate(wordn = row_number()) %>%
     ungroup %>%
-    left_join(emoticon, by=c("words"="emoticon"))             # Add the meaning for the emoticons
+    left_join(emoticon, by=c("words"="emoticon"))             # Add the meaning for the emoticons from the emoticon dictionary
 
 
   train.data.aug <- train.data.long %>%
@@ -314,7 +312,7 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
 
 
 
-  # this part runs really slow, alex, can you please take a look at it
+  # this part runs really slow, be warned
   train.data.clean <- train.data.aug %>%
     rowwise() %>%
     mutate(
@@ -322,7 +320,7 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
              ifelse (hunspell_check(words),
                      words,
                      ifelse(is.na(decode),
-                            words,#hunspell_suggest(word)[[1]][1]
+                            hunspell_suggest(word)[[1]][1]
                             decode 
                             )
                      ),
@@ -330,23 +328,26 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
              )
     )
   
-  # aggregating using the aug dataset, once the previous step is made to work faster, this will need to read from the cleaned dataframe
-  train.data.wide <- train.data.aug %>%
+  # aggregating the entire tweets back to one line per tweet
+  train.data.wide <- train.data.clean%>%
     group_by(tweet_id) %>%
     summarise(cleaned_tweet = paste(words, collapse = " "))
 
 
-
-  # Create corpus
+  # Creating a corpus to create the term document matrix
   tweet.corpus <- Corpus(VectorSource(train.data.wide$cleaned_tweet))
 
-
+  # Stem the words
   tweet.corpus <- tm_map(tweet.corpus, stemDocument)
+  
+  # Create the term document matrix, removing punctuation and stopwords (common words that carry little meaning)
   tdm <- TermDocumentMatrix(tweet.corpus,
                             control = list(
                                            removePunctuation = TRUE,
                                            stopwords = TRUE))
 
+  
+  # Generating a sentiment score to be used as a feature in the predictive model
   pos.score <- tm_term_score(tdm, terms_in_General_Inquirer_categories("Positiv")) # this lists each document with number below
 
   neg.score <- tm_term_score(tdm,terms_in_General_Inquirer_categories("Negativ"))
@@ -357,16 +358,17 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
                                negative = neg.score,
                                stringsAsFactors = FALSE)
 
-
-
+  # Sentiment scoring
   cleaned_tweets <- cleaned_tweets %>%
     mutate(rown = row_number(),
            positivity = (positive - negative) / (positive + negative + 1))
 
-
+  # merge this onto the original tweet dataset that other features for the predictive model
   cleaned_tweets <-
       cleaned_tweets %>%
       inner_join(train.data.new, by="rown")
+  
+  
   
   #Remove drugs from text
   drugs <-

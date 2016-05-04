@@ -127,7 +127,7 @@ wordcloud(data[["train"]] %>% filter(is_AE == "Yes") %$% stemmed,
           )
 ```
 
-Next, we show the 30 most frequenz words, both for tweets related to ADRs and tweets not related to ADRs.
+Next, we show the 30 most frequent words, both for tweets related to ADRs and tweets not related to ADRs.
 
 ```{r 04_word_counts}
 data[[1]] %>% 
@@ -459,7 +459,7 @@ pROC::roc(cleaned_tweet$is_AE, preds_new_final) %>%
     plot()
 ```
 
-We see that the result is quite a bit worse, but still much better than random. In particular, the support vector machine had a huge drop in performacen.
+We see that the result is quite a bit worse, but still much better than random. In particular, the support vector machine had a huge drop in performace.
 
 A very likely reason is that our way of manually annotating tweets is different from the researchers in [here](http://diego.asu.edu/Publications/ADRMine.html) and [here](http://diego.asu.edu/downloads/twitter_annotated_corpus/): they had meetings with experts that went very carefully over all tweets. On the other hand, it is not even clear how good our area under curve as annotators would be.
 

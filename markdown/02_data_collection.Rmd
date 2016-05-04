@@ -134,12 +134,12 @@ for(i in 1:length(drugs)) {
 save(tweets, file = "../data/download_tweets/datacollection.RData")
 ```
 
-For being able to manually annotate some of the new tweets, we bring them in tabular form: we make them into a data frame having two columns:
+To be able to manually annotate some of the new tweets, we converted them into tabular form: a data frame having two columns:
 
 + tweet_id
 + tweet_text
 
-Furthermore, we save a sample of 400 tweets as Excel file in order to be able to manually annotate some of the tweets.
+Furthermore, we saved a sample of 400 tweets as an Excel file for easier annotation.
 
 ```{r 02_save_new_data_excel, eval = FALSE}
 set.seed(123)

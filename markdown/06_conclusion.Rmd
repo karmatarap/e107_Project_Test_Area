@@ -6,7 +6,7 @@ With quite sophisticated data cleaning techniques and stacking of machine learni
 
 When the model was applied to new data, the predictive performance dropped significantly, but it was still highly significantly (statistically and practically) above random performance. One reason for this is that we do not have the same experience and methodology of previous researchers for annotating the tweets.
 
-Other possible reasons are that tweets containing drug names have changed. There are some plausible explanaitions in what way tweets change over time:
+Other possible reasons are that tweets containing drug names have changed. There are some plausible explanations in what way tweets change over time:
 
 + The number of advertisements grows in proportion
 + Slang words change
