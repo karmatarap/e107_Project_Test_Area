@@ -159,7 +159,7 @@ data[[1]] %>%
     ylab("Count")
 ```
 
-Next, we take the `sentiments` data from the `tidytext` package to do sentiment analysis. We see quite a big difference in sentiments between tweets corresponding to adverse events and those not corresponding to adverse events:
+Next, we take the `sentiments` data from the `tidytext` package to do sentiment analysis (we add these sentiments in addition to the ones mentioned in the data cleaning section, because they give a more refined picture of sentiments, and not only positive and negative). We see quite a big difference in sentiments between tweets corresponding to adverse events and those not corresponding to adverse events:
 
 + *Trust* is much lower in AE tweets
 + *Negative* is much higher in AE tweets

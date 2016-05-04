@@ -320,7 +320,7 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
              ifelse (hunspell_check(words),
                      words,
                      ifelse(is.na(decode),
-                            hunspell_suggest(word)[[1]][1]
+                            hunspell_suggest(words)[[1]][1],
                             decode 
                             )
                      ),
@@ -367,8 +367,6 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
   cleaned_tweets <-
       cleaned_tweets %>%
       inner_join(train.data.new, by="rown")
-  
-  
   
   #Remove drugs from text
   drugs <-

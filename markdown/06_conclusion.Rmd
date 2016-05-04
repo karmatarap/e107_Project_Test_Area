@@ -23,3 +23,19 @@ Next steps would be to do simple exploratory analyses on the new data set:
 
 ## Comorbidity
 
+A very interesting extension of the comorbidity analysis would be to work on the **bipartite graph**. There we have two sets of nodes:
+
+1. Patients
+2. Adverse Events
+
+Edges between patients and adverse events occur, if a patient is marked with an adverse events. This graph has the advantage of containing all the informations needed to calculate cooccurence probabilities: 
+
++ The degree, i.e. the number of outgoing edges, of an AE node $A$, $d(A)$, corresponds to the number of times $A$ has occured
++ The number of length two paths between two AE nodes $A$ and $B$ $n(A,B)$ corresponds to the number of cooccurences of $A$ and $B$
++ Thus the cooccurence probability of $A$ and $B$ is $p(A\vert B) = n(A, B) / d(B)$
+
+This is actually very strongly related to the concept of **association rule mining** on the graph, which could lead to similiar results.
+
+## Karma, please check if this makes any sense at all
+
+Other interesting analyses could be similar to recommender systems: a recommender system can be thought of as a bipartitge graph. Then there is user-user collaborative filtering, i.e. we suggest new items based on preferences of similar users. In the case at hand, this would suggest new adverse events based on the ones a patient has. "Recommending an AE" in this case would correspond to suggesting diagnostic tests (in terms of graphs, this corresponds to link prediction).

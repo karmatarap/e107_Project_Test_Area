@@ -1,6 +1,6 @@
 # Comorbidity
 
-```{r}
+```{r 05_comorbidty, eval = FALSE}
 
 
 require(dplyr)
