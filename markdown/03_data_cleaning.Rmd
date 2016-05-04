@@ -318,7 +318,7 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
   train.data.clean <- train.data.aug %>%
     rowwise() %>%
     mutate(
-      wordsx = ifelse((is.na(drug_name) && !is_hashtag && !is_URL),
+      words = ifelse((is.na(drug_name) && !is_hashtag && !is_URL),
              ifelse (hunspell_check(words),
                      words,
                      ifelse(is.na(decode),

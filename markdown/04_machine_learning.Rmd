@@ -349,7 +349,7 @@ The area under curve is actually quite good for a model with so few features (ju
 
 ## Aggregating predictions:
 
-The next step is to aggregate the predictions from different models into a final model. We chose just the models based on the bag of words features (adding the result from the second model above did not significantly improve the area under curve and thus was not included).
+The next step is to aggregate the predictions from different models into a final model. We use the outputs from the previous models as inputs and train a random forest.
 
 ```{r 04_aggregate_predictions}
 preds$results <- data[["test"]]$is_AE
@@ -360,7 +360,8 @@ tr_control <- trainControl(method = "cv",
 
 tune_grid <- expand.grid(mtry = c(1, 2, 3, 4))
 
-fit_rf <- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
+fit_rf <- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB +
+                    TREE_PROB + model_two,
                data = preds,
                method = "rf",
                trControl = tr_control,
@@ -387,67 +388,80 @@ In order for the following code chunk to work, this [hack](https://groups.google
 We plot the receiver-operating characteristic for the new tweets.
 
 ```{r 04_analyse_new_tweets}
-pred_new_tweets <- function() {
-    # Prepares new tweets into a form that is suitable for being fed
-    # into the classifiers
-    #
-    # Args: None
-    #
-    # Returns: data frame
-    source("../r/clean_tweets.R")
-    source("../r/make_drug_list.R")
-    source("../r/make_slang_lookup.R")
-    source("../r/helper_functions/create_matrix_fixed.R")
-    
-    cleaned_tweet <- 
-        read.xlsx("../data/download_tweets/tweets_recent_annotated.xlsx",
-                  sheetIndex = 1) %>% 
-        select(tweet_id, tweet_text, is_AE) %>% 
-        clean_tweets(make_drug_list(), make_slang_lookup())
-    
-    
-    source("../r/helper_functions/create_matrix_fixed.R")
-    new_tweets_dtm <- 
-        create_matrix(cleaned_tweet$stemmed,
-                      originalMatrix = doc_matrix,
-                      language = "english",
-                      removeNumbers = TRUE,
-                      removePunctuation = TRUE,
-                      toLower = TRUE,
-                      stemWords = TRUE,
-                      stripWhitespace = TRUE,
-                      ngramLength = 1,
-                      minDocFreq = 1,
-                      weighting = tm::weightTf)
-    
-    new_container <- create_container(new_tweets_dtm,
-                                      labels = c(data[[1]]$is_AE, data[[2]]$is_AE,
-                                                 cleaned_tweet$is_AE),
-                                      trainSize = NULL,
-                                      testSize = 1:nrow(cleaned_tweet),
-                                      virgin = FALSE
-    )
-    preds_new <- classify_models(new_container, fit_models)
-    preds_new_final <- predict(fit_rf, preds_new, type = "prob")[, 2]
-    
-    analytics <- create_analytics(new_container, preds_new)
-    print(summary(analytics))
-    
-    par(mfrow = c(2, 2))
-    preds_new %$% pROC::roc(cleaned_tweet$is_AE, MAXENTROPY_PROB) %>% plot
-    preds_new %$% pROC::roc(cleaned_tweet$is_AE, GLMNET_PROB) %>% plot
-    preds_new %$% pROC::roc(cleaned_tweet$is_AE, SVM_PROB) %>% plot
-    preds_new %$% pROC::roc(cleaned_tweet$is_AE, TREE_PROB) %>% plot
-    
-    par(mfrow = c(1, 1))
-    pROC::roc(cleaned_tweet$is_AE, preds_new_final) %>% 
-    plot()
-}
 
-pred_new_tweets()
+source("../r/clean_tweets.R")
+source("../r/make_drug_list.R")
+source("../r/make_slang_lookup.R")
+source("../r/helper_functions/create_matrix_fixed.R")
+
+cleaned_tweet <- 
+    read.xlsx("../data/download_tweets/tweets_recent_annotated.xlsx",
+              sheetIndex = 1) %>% 
+    select(tweet_id, tweet_text, is_AE) %>% 
+    clean_tweets(make_drug_list(), make_slang_lookup())
+
+
+source("../r/helper_functions/create_matrix_fixed.R")
+new_tweets_dtm <- 
+    create_matrix(cleaned_tweet$stemmed,
+                  originalMatrix = doc_matrix,
+                  language = "english",
+                  removeNumbers = TRUE,
+                  removePunctuation = TRUE,
+                  toLower = TRUE,
+                  stemWords = TRUE,
+                  stripWhitespace = TRUE,
+                  ngramLength = 1,
+                  minDocFreq = 1,
+                  weighting = tm::weightTf)
+
+new_container <- create_container(new_tweets_dtm,
+                                  labels = c(data[[1]]$is_AE, data[[2]]$is_AE,
+                                             cleaned_tweet$is_AE),
+                                  trainSize = NULL,
+                                  testSize = 1:nrow(cleaned_tweet),
+                                  virgin = FALSE
+)
+
+preds_new <- classify_models(new_container, fit_models)
+
+
+# Sentiment model
+cleaned_tweet_two <- cleaned_tweet %>% preprocess_second
+
+# Add sentiment variables not in data frame
+all_sentiments <-
+    sentiments %$%
+    sentiment %>%
+    keep(~!is.na(.)) %>% 
+    unique %>% 
+    map_chr(~str_c("sentiment_", .))
+
+sentiments_not_present <- 
+    keep(all_sentiments, ~(!. %in% colnames(cleaned_tweet_two)))
+
+cleaned_tweet_two[, sentiments_not_present] <- 0
+
+# Predict second model
+preds_new$model_two <- 
+    predict(fit_2nd, cleaned_tweet_two, type = "prob")[, 2]
+
+analytics <- create_analytics(new_container, preds_new)
+print(summary(analytics))
+
+par(mfrow = c(1, 2))
+preds_new %$% pROC::roc(cleaned_tweet$is_AE, GLMNET_PROB) %>% plot
+preds_new %$% pROC::roc(cleaned_tweet$is_AE, SVM_PROB) %>% plot
+
+par(mfrow = c(1, 1))
+preds_new_final <- predict(fit_rf, preds_new, type = "prob")[, 2]
+pROC::roc(cleaned_tweet$is_AE, preds_new_final) %>% 
+    plot()
 ```
 
-We see that the result is quite a bit worse, but still much better than random. A very likely reason is that our way of manually annotating tweets is different from the researchers in [here](http://diego.asu.edu/Publications/ADRMine.html) and [here](http://diego.asu.edu/downloads/twitter_annotated_corpus/): they had meetings with experts that went very carefully over all tweets. On the other hand, it is not even clear how good our area under curve as annotators would be.
+We see that the result is quite a bit worse, but still much better than random. In particular, the support vector machine had a huge drop in performacen.
+
+A very likely reason is that our way of manually annotating tweets is different from the researchers in [here](http://diego.asu.edu/Publications/ADRMine.html) and [here](http://diego.asu.edu/downloads/twitter_annotated_corpus/): they had meetings with experts that went very carefully over all tweets. On the other hand, it is not even clear how good our area under curve as annotators would be.
 
 ## Save models
 
@@ -456,5 +470,6 @@ save(fit_models, file = "../data/models/fit_models.RData")
 save(fit_rf, file = "../data/models/stacked_rf.RData")
 save(doc_matrix, file = "../data/models/doc_matrix.RData")
 save(data, file = "../data/models/train_data.RData")
+save(fit_2nd, file = "../data/models/sentiment_model.RData")
 ```
 
