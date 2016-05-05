@@ -23,6 +23,11 @@ Next steps would be to do simple exploratory analyses on the new data set:
 
 ## Comorbidity
 
+From clustering using social network techniques, we observed groupings of Adverse Events similar to what we would have under a heirachical drug term dictionary like MedDra. Although this was a simple case where  we only considered one drug and ignored probable confounding factors like demographic data or concomitant medications, the results were very plausible.
+
+The next step would be to classify the preferred terms under a heirachical drug dictionary, so we could focus on the Adverse Events that were "out of place". That would also be useful in identifying unnexpected relationships that are difficult to detect in a clinical setting (eg, multiple concomitant drugs).
+
+
 A very interesting extension of the comorbidity analysis would be to work on the **bipartite graph**. There we have two sets of nodes:
 
 1. Patients
@@ -36,6 +41,5 @@ Edges between patients and adverse events occur, if a patient is marked with an 
 
 This is actually very strongly related to the concept of **association rule mining** on the graph, which could lead to similiar results.
 
-## Karma, please check if this makes any sense at all
 
-Other interesting analyses could be similar to recommender systems: a recommender system can be thought of as a bipartitge graph. Then there is user-user collaborative filtering, i.e. we suggest new items based on preferences of similar users. In the case at hand, this would suggest new adverse events based on the ones a patient has. "Recommending an AE" in this case would correspond to suggesting diagnostic tests (in terms of graphs, this corresponds to link prediction).
+Other interesting analyses could be similar to recommender systems for use by a physician: a recommender system can be thought of as a bipartitge graph. That is, given a list of medications that the patient is on, and by specifying also which AEs the patient alread has observed through user-user collaborative filtering, we could suggest what are the most likely adverse events based on the ones a patient already has. "Recommending an AE" in this case would correspond to suggesting diagnostic tests (in terms of graphs, this corresponds to link prediction).
