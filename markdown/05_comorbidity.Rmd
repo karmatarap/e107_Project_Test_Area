@@ -1,29 +1,90 @@
 # Comorbidity
 
-```{r}
+The comorbidity, or co-occurrence of Adverse Events can show trends and help determine causal relationships of Drug Related Adverse Events [(Wang et al, 2009)](https://www.ncbi.nlm.nih.gov/pubmed/23703825/)
 
+Furthermore, the co-occurence patterns of Adverse events, particularly under co-administration of multiple drugs is poorly understood. 
+
+Here we will examine the use of social networking algorithms to detect co-occuring adverse events.
+
+
+## Data collection
+
+Initially we hoped to use the tweet data from previous sections for this analysis. However we simply did not have enough data points available. 
+
+The FDA provides quarterly downloadable files of Adverse Events reported for use in post-marketing safety surveillance from [here](http://www.fda.gov/Drugs/GuidanceComplianceRegulatoryInformation/Surveillance/AdverseDrugEffects/). We consequently decided that this was a clean, abundant and reliable source of data to perform the analysis on.
+
+
+
+### A First look at the data
+
+Reading in the Adverse Events, and the drugs the patients were on
+```{r}
 
 require(dplyr)
 require(ggplot2)
 require(rafalib)
 require(igraph)
+#setwd("/Users/bear/Studies/Harvard/Data_Science/project/e107_Project_Test_Area/markdown")
 
-ae.data <- read.delim2("../data/REAC15Q4.txt",sep="$")
+# Adverse Event data
+ae.data <- read.delim2("../data/REAC15Q4.txt",sep="$", stringsAsFactors = FALSE)
 
-# Get an idea of how many data points we are looking at
+# Associated drug data
+drug.data <- read.delim2("../data/DRUG15Q4.txt",sep="$", stringsAsFactors = FALSE)
+
+```
+
+
+
+The Drug data contains information on repeat dosing, as well as missed doses
+We will only keep patients that had an actual dose of study drug and that the drug was the primary suspect of the AE
+
+```{r}
+
+drug.data <- drug.data %>%
+  filter(cum_dose_chr !="" && role_cod =="PS") %>%
+  select(primaryid, drugname) %>%
+  unique()
+
+# Print the drugs with the most patients
+drug.data %>%
+  group_by(drugname)%>%
+  summarize(n=n())%>%
+  arrange(-n) %>% 
+  head %>% 
+  kable
+
+#How many incidences does vyvanse have
+drug.data %>%
+  filter(tolower(drugname)=="vyvanse") %>%
+  group_by(drugname) %>%
+  summarize(n=n())%>%
+  arrange(-n) %>%  kable
+
+```
+
+We can see that there are a lot of patient here, and it would be very tricky to visualise graphs of these sizes, so for this analysis, we will look specifically at Vyanse, that was the most frequent drug on the tweet analysis section
+
+
+Similary, taking a look at the Adverse event dataset. Then we will keep only those where the primary suspect is Vyvanse
+
+```{r}
+
+# Get an idea of how many data points we are looking at in the total AE dataset
 ae.data %>% 
   summarize(n_patients = n_distinct(primaryid),
             n_aes      = n_distinct(pt))
 
+# Select only vyvanse patients 
+vyvanse <- drug.data %>%
+  filter(tolower(drugname)=="vyvanse") %>%
+  select(primaryid) %>%
+  unique()
 
-set.seed(1234)
-
-# FAERS dataset has over 31k patients. We will take a random sample of 10k patients to help ensure the structure of the eventual graph is representative of the population
-sample_ids <- sample(unique(ae.data$primaryid),10000)
-
-
+# Filter the AE dataset for these patients
 ae.data.subset <- ae.data %>%
-  filter(primaryid %in% sample_ids)
+  filter(primaryid %in% vyvanse$primaryid)
+
 
 # plot the frequencies of the 20 most common AEs
 counts <- count(ae.data.subset,pt) %>% 
@@ -31,53 +92,56 @@ counts <- count(ae.data.subset,pt) %>%
   head(20)
 
 ggplot(counts, aes(x = reorder(pt, n), y = n)) +
-         geom_bar(stat = "identity") +
+         geom_bar(stat = "identity") + 
+         xlab("Preferred Term") +
+         ggtitle ("20 most frequent Adverse Events where Vyvanse is the primary suspected drug") +
   coord_flip()
 
+```
 
+### Building the network graph
+
+We will start by creating an adjacency list to build the graph object. We will also add weights to each of the edges where the weight will be the probability of that edge. 1/number of edges for that patient.
+
+```{r}
 
 # We will only consider at most, one co-occurence of Adverse Events per patient
-ae.data.unique <- ae.data.subset %>% 
+#ae.data.unique <- ae.data.subset %>% 
+#  dplyr::select(primaryid, pt) %>% 
+#  mutate(primaryid = as.character(primaryid)) %>%
+#  unique() 
+
+
+# Calculate the number of AEs per patient
+ae.data.obs <-ae.data.subset %>% 
   dplyr::select(primaryid, pt) %>% 
-  mutate(primaryid = as.character(primaryid)) %>%
-  unique() 
+  group_by(primaryid) %>%
+  mutate(obs=n()) %>%
+  ungroup
 
-
-ae.data.expand <- ae.data.unique %>% full_join(ae.data.unique,by="primaryid") %>%
-  filter (pt.x!=pt.y) %>%
-  mutate(from=pt.x, to=pt.y) %>%
-  select(from, to)
+# Cartesian product of adverse events, we reduce this so we are not double counting edges. ie A->B != B->A
+ae.data.expand <- ae.data.obs %>% full_join(ae.data.obs,by="primaryid") %>%
+  filter (pt.x<pt.y) %>%
+  mutate(from=pt.x, to=pt.y, wgt=1/obs.x) %>%
+  group_by(from, to)%>%
+  summarise(weight=sum(wgt)) %>%
+  ungroup
 
 
 # Build the graph object from the data
 g <- graph.data.frame(ae.data.expand, directed = FALSE)
 
-
-# Assigning weight to adjacency graph. To avoid double counting A->B == B->A we will assign a weight of .5 to each instance of an edge and have igraph sum the weights
-E(g)$weight <- .5
-g <- simplify(g, edge.attr.comb=list(weight="sum"))
+```
 
 
+Now that we have our graph object, we will assign the frequencies of the Adverse events to the nodes.
 
-#G<-graph.data.frame(ae.data.unique, directed = FALSE)
-# separating AEs from patient IDs
-#V(G)$type <- grepl("[A-Z]+", V(G)$name)
+We will then do some simple interrogation of the graph.
 
-
-# adjacency matrix, weighted by AE co-occurence
-#bp<- bipartite.projection(G)
-
-# Only considering Adverse event terms
-#g <- g$proj2
-
-#g <- simplify(g)
-
-
-#The number of edges and verstices in our network
-
+```{r}
 
 # Calculate the frequency of each Adverse Event
-pt.freq <- ae.data.unique %>%
+pt.freq <- ae.data.obs %>%
   group_by(pt) %>%
   summarise(nc=n()) %>%
   ungroup 
@@ -91,398 +155,142 @@ name.ord <- data.frame(names=V(g)$name,ord=seq(1:length(V(g)$name))) %>%
 # Apply the frequencies to be the node counts
 V(g)$node_count <- name.ord$nc
 
-# Lets find some info on our graph
 
+# Preliminary plot to see the structure of the graph
+plot(g, 
+     vertex.label=NA,
+     vertex.size=1)
+
+# Number of vertices
 vcount(g)
 
+# Number of edges
 ecount(g)
 
+```
 
+We can see from our preliminary plot that we have one large cluster of AEs, and a few very small clusters as well as a few isolates that consist of only one edge.
+
+
+### Cluster analysis
+
+Lets first take a look at some of the smaller clusters and isolates
+
+
+```{r}
 # We don't expect all our Adverse events to be connected, so taking a look at the number of distinct clusters
 
 g.components <- clusters(g)
+
+# print sizes of each cluster
 g.components$csize
 
+# We can see that we have one large cluster of 474, 4 small and 10 isolates that consist of a single unconnected pair. 
 
-# We can see that we have one giant cluster of 3124 adverse events and 12 isolates that consist of a single unconnected pair. 
-
+# Lets plot the small clusters together
 g.small <- induced.subgraph(g, which(g.components$membership != which.max(g.components$csize)))
 
-
-
-g.small.layout <- layout.reingold.tilford(g.small, circular=TRUE)
+#Edges have been weighted by the degree
 plot(g.small,
-     layout = g.small.layout,
-     vertex.size = .5,
-     vertex.label.cex = .6,
-     edge.label.cex = .6,
-     edge.label=E(g.small)$weight)
+     vertex.size = 4,
+     vertex.shape ="square",
+     vertex.label.family = "sans",
+     vertex.label.cex = .8,
+     edge.width = degree(g.small))
 
-# Given that these AEs are rare with an edge weight of only one, there is not likely any strong releationship between them
+# Isolates with small degrees are likely either rare or due to chance and have little to do with the Drug
 
 
-# So we will continue the rest of the analysis keeping only the large central network
+# We will continue the rest of the analysis keeping only the large central network
 g.big <- induced.subgraph(g, which(g.components$membership == which.max(g.components$csize)))
 
+```
 
-#Given that they were obser
+We can see some interesting groupings from the small clusters already. Once cluster points to neonatal AEs such as : 
+- Jaundice Neonatal
+- Premature baby
+- Feotal exposure during pregnancy
+- Drug withdrawal sympton neonatal
+- Feotal distress syndrome
 
-
-# Preliminary plot to show structure of the network
-# Removing labels so we can see the underlying structure
-
-#plot(g, 
-#     layout = layout.fruchterman.reingold,
-#     vertex.label = NA)
-
-
-# From the network graph above, we can see that we have a few very strongly connected components. We will also have a lot of isolates that are connected to only 1 other node. We will remove these
-
-
+We also have a separate cluster that contains the AEs from the mother:
+- Premature delivery
+- Caesarian section
+The linked AEs of Rhesus incompatibility and infusion is likely due to an infusion during delivery
 
 
-# We can now see a much clearer structure, however, the graph is still too large to plot labels 
+### Community detection
 
-sub <- c("Nausea","Fatigue","Headache")
-g.sub <- induced_subgraph(graph=g.big,vids=sub)
-
+Having explored the smaller cluster, we are still left with a strongly connected, large cluster. In order to help visualise it, we will split the cluster into communities using a random walk. We will then investigate a few clusters between 10 and 40 nodes.
 
 
-# Community detection
-
-
+```{r}
 
 set.seed(1234)
 # Detecting community strucution via short random walks
-wc <- walktrap.community(g.big, weights = E(g.big)$weight, steps = 200, merges =
+wc <- walktrap.community(g.big, weights = E(g.big)$weight, steps = 120, merges =
           TRUE, modularity = TRUE, membership = TRUE)
 
+# Print the sizes of our communities
 sizes(wc)
 
-
-g.prune <- induced.subgraph(g.big, which(membership(wc)==14))
-
-
-plot(g.prune,
+plot_cluster <- function(clust){ 
+  g.prune <- induced.subgraph(g.big, which(membership(wc)==clust))
+  g.prune.layout <-  layout.reingold.tilford(g.prune, circular=TRUE)
+  
+  plot(g.prune,
      layout =layout_with_fr(g.prune),
-     vertex.size = .5,
-     vertex.label.cex = .6,
-     edge.label.cex = .6)
-
-
-
-#####################
-dend <- as.dendrogram(wc, use.modularity=TRUE)
-plot(dend)
-
-
-eb <- edge.betweenness.community(g.subset)
-
-plot(as.dendrogram(eb))
-
-
-
-
-
-
-
-
-colors <- rainbow(max(membership(wc)))
-plot(g.subset,
-     vertex.size=.4,
-     vertex.label = NA,
-     vertex.color=colors[membership(wc)], 
-     layout=lfr)
-
-
-pc <- 
-
-
-  
-  
-  
-  
-  
-
-## Create community graph, edge weights are the number of edges
-cg <- contract.vertices(g.big, membership(wc))
-plot(cg)
-cg2 <- simplify(cg, remove.loops=FALSE)
-
-## Plot the community graph
-plot(cg2,margin=.5)
-
-
-plot(wc, g.subset, vertex.label=NA,  
-     layout = layout_with_fr(g))
-
-layout <-layout.fruchterman.reingold(g)
-
-plot(g, layout=layout_with_fr(G),
-  vertex.size=map(betweenness(g),c(1,15)),
-  edge.width=map(edge.betweenness(g), c(1,10)))
-
-
-
-
-
-
-##############################
-
-
-
-#' # Diameter of graph - Length of the longest geodesic path
-# longest shortest path
-diameter(g.subset)
-get.diameter(g.subset)
-
-#' # Maximal independent vertex sets
-independence.number(g.subset)
-
-# mark the first maximal independent vertex set red
-col <- rep("blue",length(V(g)))
-col[maximal.independent.vertex.sets(g)[[1]]] <- "red"
-plot(g, layout=layout, vertex.color=col)
-
-#' # Find connected components
-cl <- clusters(g.subset)
-cl
-
-layout <- layout.reingold.tilford(g.subset, circular=T)
-plot(g.subset,vertex.label=NA, 
-     layout=layout, vertex.color=cl$membership+1L)
-
-
-#' # Get connected components
-dg <- decompose.graph(g.subset)
-length(dg)
-plot(dg[[1]])
-plot(dg[[2]])
-
-
-#' # Max-flow  between vertices 1 and 2
-graph.maxflow(g, 1, 2)
-
-#' # Min cut (of the first connected component)
-graph.mincut(dg[[1]], value.only=FALSE)
-
-col <- rep("blue", length(V(dg[[1]])))
-col[graph.mincut(dg[[1]], value.only=FALSE)[["partition2"]]] <- "red"
-plot(dg[[1]], vertex.color=col)
-
-#' # Find neighborhood of vertices
-gn <- graph.neighborhood(g, order = 1)
-plot(gn[[1]])
-plot(gn[[2]])
-
-#' # Find cliques
-mc <- maximal.cliques(g)
-length(mc)
-#' click size
-sapply(mc, length)
-col <- rep("blue", length(V(g)))
-#' plot the largest (last) click
-col[mc[[length(mc)]]] <- "red"
-
-plot(g, layout=layout, vertex.color=col)
-
-#' ## Large graph (social networks)
-g <- barabasi.game(1000, power=1)
-layout <- layout.auto(g.subset)
-plot(g.subset, layout=layout, vertex.size=2,
-  vertex.label=NA, edge.arrow.size=.2)
-
-#' # Page Rank
-pr <- page.rank(g.subset)$vector
-plot(g.subset, layout=layout, vertex.size=map(pr, c(1,20)),
-  vertex.label=NA, edge.arrow.size=.2)
-
-#' # Eigenvector centrality
-ec <- evcent(g)$vector
-plot(g, layout=layout, vertex.size=map(ec, c(1,20)), vertex.label=NA, edge.arrow.size=.2)
-
-#' # Kleinberg's hub and authority scores
-auth <- authority.score(g)$vector
-hub <- hub.score(g)$vector
-plot(g, layout=layout, vertex.size=map(hub, c(1,5)), vertex.label=NA, edge.arrow.size=.2)
-plot(g, layout=layout, vertex.size=map(auth, c(1,20)), vertex.label=NA, edge.arrow.size=.2)
-
-#' # Community detection (betweenness)
-eb <- edge.betweenness.community(g)
-#' create 10 communities
-member <- community.to.membership(g, eb$merges,
-  step=nrow(eb$merges)-10L+1L)
-plot(g,
-  vertex.color= rainbow(10, .8, .8, alpha=.8)[member$membership+1L],
-  vertex.size=5, layout=layout,  vertex.label=NA,
-  edge.arrow.size=.2)
-
-
-#' # Random walk
-eb <- walktrap.community(g)
-#' create 10 communities
-member <- community.to.membership(g, eb$merges,
-  step=nrow(eb$merges)-10L+1L)
-plot(g,
-  vertex.color= rainbow(10, .8, .8, alpha=.8)[member$membership+1L],
-  vertex.size=5, layout=layout,  vertex.label=NA,
-  edge.arrow.size=.2)
-
-
-
-
-
-
-cg2 <- set_graph_attr(cg2, "layout", layout_with_fr(G))
-plot(cg2, vertex.label.dist=1.5)
-
-plot(cg2, vertex.shape="none", vertex.label=V(G)$node_count, 
-     vertex.label.font=2, vertex.label.color="gray40",
-     vertex.label.cex=.7, edge.color="gray40")
-
-
-com <- cluster_spinglass(G, spins=5)
-V(G)$color <- com$membership+1
-g <- set_graph_attr(g, "layout", layout_with_kk(G))
-plot(g, vertex.label.dist=1.5)
-
-
-g <- set_graph_attr(g, "layout", layout_with_fr(G))
-plot(g, vertex.label.dist=1.5)
-
-
-netm <- get.adjacency(G, attr="weight", sparse=F)
-colnames(netm) <- V(net)$media
-rownames(netm) <- V(net)$media
-
-palf <- colorRampPalette(c("gold", "dark orange")) 
-heatmap(G[], Rowv = NA, Colv = NA, col = palf(100), 
-        scale="none", margins=c(10,10) )
-
-
-
-
-
-
-
-
-
-
-# Creating an adjacency list, the weight will be how often adverse events are observed in co-occurence
-adjacency.list <- ae.data.unique %>% 
-  full_join(ae.data.unique,by="primaryid") %>% 
-  filter(pt.x != pt.y) %>%
-  group_by(pt.x, pt.y) %>%
-  summarise(weight=n()) %>%
-  ungroup %>%
-  unique()
-
-
-s <- sample_n(adjacency.list,100)
-
-g <- graph.adjlist(s)
-get.edgelist(g)
-
-
-node_list <- get.data.frame(g, what = "edges")
-all_nodes <- sort(node_list$name)
-plot_data <- s %>% mutate(
-        to = factor(pt.x, levels = all_nodes),
-        from = factor(pt.y, levels = all_nodes))
-
-
-# Create the adjacency matrix plot
-ggplot(plot_data, aes(x = pt.x, y = pt.y, fill = group)) +
-      geom_raster() +
-      theme_bw() +
-      # Because we need the x and y axis to display every node,
-      # not just the nodes that have connections to each other,
-      # make sure that ggplot does not drop unused factor levels
-      scale_x_discrete(drop = FALSE) +
-      scale_y_discrete(drop = FALSE) +
-      theme(
-        # Rotate the x-axis lables so they are legible
-        axis.text.x = element_text(angle = 270, hjust = 0),
-        # Force the plot into a square aspect ratio
-        aspect.ratio = 1,
-        # Hide the legend (optional)
-        legend.position = "none")
-
-
-
-
-
-
-
-
-g <- graph.adjacency(ff)
-g <- get.edgelist(g)
-
-
-
-
-
-
-
-require(igraph)
-g <- graph.adjacency(v, weighted=TRUE, mode ='undirected')
-g <- simplify(g)
-# set labels and degrees of vertices
-V(g)$label <- V(g1)$name
-V(g)$label.cex <- .7
-
-V(g)$degree <- degree(g)
-
-set.seed(7867)
-
-layout1 <- layout.auto(g)
-
-opar <- par()$mar
-par(mar=rep(0, 4)) #Give the graph lots of room
-plot(g, layout=layout1)
-
-edge.weight <- 7  #a maximizing thickness constant
-z1 <- edge.weight*(1-dist(t(s), method="binary"))
-E(g)$width <- c(z1) #remove 0s: these won't have an edge
-z2 <- round(1-dist(t(X), method="binary"), 2)
-E(g)$label <- c(z2)
-plot(g, layout=layout1,edge.label=round(E(g)$weight, 3)) #check it out!
-
-
-SUMS <- diag(Z) #frequency (same as colSums(X))
-label.size <- .5 #a maximizing label size constant
-V(g)$label.cex <- (log(SUMS)/max(log(SUMS))) + label.size
-plot(g, layout=layout1) #check it out!
-
-
-#interactive version
-tkplot(g)  #an interactive version of the graph
-tkplot(g, edge.curved =TRUE)
-
-
-
-
-
-plot(g.sub,
-     e)
-
-plot(g2, 
-     layout = layout_with_fr(g2))
-
-sg1 <- decompose.graph(g,mode="weak")
-
-neighverts <- unique(unlist(sapply(g,FUN=function(s){if(any(V(g)$name=="Nausea")) V(g)$name else NULL})))
-g3 <- induced.subgraph(graph=g,vids=neighverts)
-plot(g3,
-     vertex.label.cex = .5
-     )
-
-
-
-
-
-
+     vertex.size = (V(g.prune)$node_count),
+     vertex.label.cex = .8,
+     vertex.label.family = "sans",
+     edge.label = round(E(g.prune)$weight,3),
+     edge.label.cex = .6,
+     edge.label.color = "red",
+     edge.width = E(g.prune)$weight)
+
+}
+
+plot_cluster(1)
 
 
 ```
+
+In the above graphs, the size of the node represents the frequency of that AE. The edge weight is given by the sum of probabilies of the co-occurence of the two connected AEs. 
+
+For example, we can see in cluster 1 that a decreased appetite and somnolence are quite common on vyvanse and having a decreased appetite if you have somnolence is more likely than experiencing feeling jittery.
+
+
+```{r}
+plot_cluster(5)
+
+```
+
+Cluster 5 looks shows terms mostly to do with psychological trauma. Bipolar disorder, suicidal ideation and fatigue are known to be strongly linked and we can see this here also. 
+
+The downside of this type of analysis, where we are only looking at co-occurence is that we cant tell the direction of action. That is, we can see that gynocomastia is linked with depression, but we dont have evidence of a causal link (even though its probably unlikely that depression would cause gynocomastia).
+
+```{r}
+plot_cluster(6)
+```
+
+Cluster 6 seems to primarily be auto-immune reactions. 
+
+We will now look at the last cluster in a heatmap
+
+
+```{r}
+plot_heat <- function(clust){
+    g.prune <- induced.subgraph(g.big, which(membership(wc)==clust))
+    e <- get.adjacency(g.prune,attr="weight")
+    e <- e+0.001 #getting rid of nas
+    heatmap(as.matrix(e))
+  
+}
+
+plot_heat(6)
+```
+
+From the heatmap we can see clustering and labels a bit better, and there are 3-4 clusters. In general, throughout the analysis, adverse events of similar clinical groupings have been clustering together. We suspected this might be the case, but the clustering has done a better than expected job of grouping the AE terms.
+
+
 
