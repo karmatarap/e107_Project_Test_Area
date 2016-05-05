@@ -1,5 +1,6 @@
 # Comorbidity
 
+<<<<<<< HEAD
 The comorbidity, or co-occurrence of Adverse Events can show trends and help determine causal relationships of Drug Related Adverse Events [(Wang et al, 2009)](https://www.ncbi.nlm.nih.gov/pubmed/23703825/)
 
 Furthermore, the co-occurence patterns of Adverse events, particularly under co-administration of multiple drugs is poorly understood. 
@@ -12,6 +13,9 @@ Here we will examine the use of social networking algorithms to detect co-occuri
 Initially we hoped to use the tweet data from previous sections for this analysis. However we simply did not have enough data points available. 
 
 The FDA provides quarterly downloadable files of Adverse Events reported for use in post-marketing safety surveillance from [here](http://www.fda.gov/Drugs/GuidanceComplianceRegulatoryInformation/Surveillance/AdverseDrugEffects/). We consequently decided that this was a clean, abundant and reliable source of data to perform the analysis on.
+=======
+```{r 05_comorbidty, eval = FALSE}
+>>>>>>> f0f4a0bb9c31f67847c09ab64ee7d31933ea246c
 
 
 
