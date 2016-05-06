@@ -2,7 +2,14 @@
 
 ## Read the data
 
-In the following, we define a function that reads the corpus which has detailed annotations: for each tweet it contains detailed information about the adverse event:
+In the following, we define a function that reads the corpus from [Nikfarjam et al]: for each tweet it contains detailed information about the adverse event. 
+
+The steps consists of
+
+1. Parse the annotation file and label the columns
+2. Read the dataset obtained from executing the Python script mentioned in the previous section: 
+3. Read the Adverse Drug reaction lexicon
+4. combine all results
 
 ```{r 03_parse_diego_data}
 #' Parse downloaded annotated data
@@ -17,6 +24,7 @@ In the following, we define a function that reads the corpus which has detailed 
 #'
 #' @examples parse_diego_data("train")
 #' @import dplyr, magrittr, readr, stringr
+
 parse_diego_data <- function(type) {
     # Load data
     annotation_file <-
@@ -93,7 +101,7 @@ parse_diego_data <- function(type) {
 }
 ```
 
-Next, we define a similar function that reads in the binary annotated file:
+Next, we define a similar function that reads in the data from [Abeed Sarker and Graciela Gonzalez]. Reading this dataset is easier and just consists of reading the dataset obtained from executing the Python script.
 
 ```{r 03_parse_binary_annotations}
 #' Parse binary data
@@ -138,30 +146,26 @@ parse_binary_data <- function(type) {
 }
 ```
 
-Now that we have defined the functions reading in the data, let us take a first look at them to get a feeling:
+Now that we have defined the functions reading in the data, let us take a first look at them to get a feeling.
+
+## First look at the data
 
 ```{r 03_first_look_at_data}
-# For interactive session, will remove on final
-# Load all required libraries
-
-# libs <- c("dplyr", "readr", "stringr","purrr","tidyr","tm","qdap","qdapDictionaries","splitstackshape","hunspell","rvest","knitr")
-# lapply(libs, require, character.only = TRUE)
-
 # Read in the training data
 train.data <- parse_diego_data("train")
 test.data <- parse_diego_data("test")
 binary.data <- parse_binary_data()
 ```
 
-# First look at the data
+We can see from the tweets that we might want to extract the drug names "humira" to use as a feature in future models. Even though the researchers have annotated the drug names on this dataset, this should help us classify non-annotated tweets. This could serve the puropse of **automatically** creating new training sets:
 
-We can see from the tweets that we might want to extract the drug names "humira" to use as a feature in future models. Even though the researchers have annotated the drug names on this dataset, this should help us classify non-annotated tweets.
+If we want to predict ADRs on new drugs, our trained model should not have the drug name we are interested in included as feature. For the purpose of generating a new training sample, this could, however, be a good strategy, although one has to be careful with bias.
 
 ```{r 03_example_1}
 train.data$tweet_text[709] 
 ```
 
-Although our sample of tweets, for the most part, were correctly spelt. We still wanted to run it through a spell checker to ensure our models were robust.
+Although our sample of tweets, for the most part, were correctly spelt, we still wanted to run it through a spell checker to ensure our models were robust.
 
 ```{r 03_example_2}
 train.data$tweet_text[318]
@@ -174,6 +178,7 @@ train.data$tweet_text[751]
 ```
 
 A further challenge we see is that there is sometimes repeats of characters to show emphasis. This will need to be corrected also.
+
 ```{r 03_example_4}
 train.data$tweet_text[807]
 ```
@@ -184,7 +189,7 @@ The drug names were downloaded from [here](https://www.nlm.nih.gov/research/umls
 
 These are stored as `./data/dictionaries/RXNCONSO.RFF`.
 
-We create a function that makes a list of drugs so we can identify tweets containing a known drug name, as well as ignore them from spell checking.
+We create a function that makes a list of drugs so we can identify tweets containing a known drug name, as well as ignore them from spell checking. We restrict to brand names (BN) and generics / ingredients (IN)
 
 ```{r 03_create_drug_list}
 make_drug_list <- function() {
@@ -212,8 +217,6 @@ make_drug_list <- function() {
 
     drug.list
     }
-
-drug.list <- make_drug_list()
 ```
 
 
@@ -257,19 +260,17 @@ make_slang_lookup <- function() {
         filter(!grepl(",|-or-",descriptions)) %>%
         filter(words != "")
 }
-
-slang.lookup <- make_slang_lookup()
-
 ```
 
 Next, we put every together: we add new attributes to the dataset
 
-+ The **vector of words**: we take the tweet text and split it spaces.
 + We extract the **hastags**
 + We see whether the tweet text contains a **URL**. This could be related to advertisments
-+
++ Add positive and negative sentiments
++ Stem the text
++ Extract drugs
 
-```{r 03_clean_tweets}
+```{r 03_clean_tweets, eval = FALSE}
 clean_tweets <- function(train.data, drug.list, slang.lookup) {
 
   #Loading the emoticon dataset from qdapDictionaries. This converts emoticons to their english text counterpart
@@ -286,10 +287,8 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
     mutate(rown = row_number())
   
   
-  
-  
   # Reshaping the data
-  # Transposing to get one word per row using the strsplitstack package. This allows us to preserve emoticons
+  # Transposing to get one word per row using unnest without removing punctuation. This allows us to preserve emoticons
   train.data.long <- train.data.new %>%
     select(tweet_id, tweet_text) %>%
     mutate(words = strsplit(as.character(tolower(tweet_text))," ")) %>%
@@ -297,7 +296,7 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
     group_by(tweet_id) %>%
     mutate(wordn = row_number()) %>%
     ungroup %>%
-    left_join(emoticon, by=c("words"="emoticon"))             # Add the meaning for the emoticons
+    left_join(emoticon, by=c("words"="emoticon"))             # Add the meaning for the emoticons from the emoticon dictionary
 
 
   train.data.aug <- train.data.long %>%
@@ -313,15 +312,15 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
 
 
 
-  # this part runs really slow, alex, can you please take a look at it
+  # this part runs really slow, be warned
   train.data.clean <- train.data.aug %>%
     rowwise() %>%
     mutate(
-      wordsx = ifelse((is.na(drug_name) && !is_hashtag && !is_URL),
+      words = ifelse((is.na(drug_name) && !is_hashtag && !is_URL),
              ifelse (hunspell_check(words),
                      words,
                      ifelse(is.na(decode),
-                            words,#hunspell_suggest(word)[[1]][1]
+                            hunspell_suggest(words)[[1]][1],
                             decode 
                             )
                      ),
@@ -329,24 +328,26 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
              )
     )
   
-  # aggregating using the aug dataset, once the previous step is made to work faster, this will need to read from the cleaned dataframe
-  train.data.wide <- train.data.aug %>%
+  # aggregating the entire tweets back to one line per tweet
+  train.data.wide <- train.data.clean%>%
     group_by(tweet_id) %>%
     summarise(cleaned_tweet = paste(words, collapse = " "))
 
 
-
-  # Create corpus
+  # Creating a corpus to create the term document matrix
   tweet.corpus <- Corpus(VectorSource(train.data.wide$cleaned_tweet))
 
-
+  # Stem the words
   tweet.corpus <- tm_map(tweet.corpus, stemDocument)
+  
+  # Create the term document matrix, removing punctuation and stopwords (common words that carry little meaning)
   tdm <- TermDocumentMatrix(tweet.corpus,
                             control = list(
                                            removePunctuation = TRUE,
                                            stopwords = TRUE))
-  require("tm.lexicon.GeneralInquirer")
 
+  
+  # Generating a sentiment score to be used as a feature in the predictive model
   pos.score <- tm_term_score(tdm, terms_in_General_Inquirer_categories("Positiv")) # this lists each document with number below
 
   neg.score <- tm_term_score(tdm,terms_in_General_Inquirer_categories("Negativ"))
@@ -357,17 +358,45 @@ clean_tweets <- function(train.data, drug.list, slang.lookup) {
                                negative = neg.score,
                                stringsAsFactors = FALSE)
 
-
-
+  # Sentiment scoring
   cleaned_tweets <- cleaned_tweets %>%
     mutate(rown = row_number(),
            positivity = (positive - negative) / (positive + negative + 1))
 
-
+  # merge this onto the original tweet dataset that other features for the predictive model
   cleaned_tweets <-
-    cleaned_tweets %>%
-    inner_join(train.data.new, by="rown")
-
+      cleaned_tweets %>%
+      inner_join(train.data.new, by="rown")
+  
+  #Remove drugs from text
+  drugs <-
+      read_lines("../data/download_tweets/drug_names.txt", skip = 6) %>% 
+      stemDocument()
+  drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
+  
+  # Remove hashtag symbol
+  cleaned_tweets$hashtag %<>% str_replace_all("#", "")
+  
+  # Change hashtags
+  cleaned_tweets$hashtag %<>% str_to_lower() %>% stemDocument()
+  cleaned_tweets$hashtag <- plyr::revalue(cleaned_tweets$hashtag, c("character(0)" = NA))
+  
+  # Extract drug
+  cleaned_tweets$drug <- 
+      str_c(str_extract_all(cleaned_tweets$stemmed, drug_regex),
+            str_extract_all(cleaned_tweets$hashtag, drug_regex)) %>% 
+      str_replace_all("character\\(0\\)", "")
+  
+  # Remove drug from tweet and hashtag
+  cleaned_tweets$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+  
+  cleaned_tweets$hashtag %<>% 
+      str_replace_all(drug_regex, "") %>% 
+      str_replace_all('", ', "") %>% 
+      str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
+      str_replace_all('\\"', " ") %>% 
+      ifelse(. == "", NA, .)
+  
   cleaned_tweets
 }
 

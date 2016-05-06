@@ -1,1 +1,45 @@
 # Conclusion
+
+## Predicting Adverse events from tweets
+
+With quite sophisticated data cleaning techniques and stacking of machine learning models, we were able to reproduce the order of predictive performance obtained in previous related work.
+
+When the model was applied to new data, the predictive performance dropped significantly, but it was still highly significantly (statistically and practically) above random performance. One reason for this is that we do not have the same experience and methodology of previous researchers for annotating the tweets.
+
+Other possible reasons are that tweets containing drug names have changed. There are some plausible explanations in what way tweets change over time:
+
++ The number of advertisements grows in proportion
++ Slang words change
++ The use of twitter overall changes
+
+Answering what exactly caused the predictive performance to drop is another interesting project. A first step in this direction would be to compute our accuracy for manually annotated tweets, i.e. manually annotate some tweets that are in the training and validation sets and compute agreement.
+
+Next steps would be to do simple exploratory analyses on the new data set:
+
++ Are the most frequent words the same?
++ Does the sentiment profile look similar?
++ Are there more names of URLs contained in the more recent dataset?
++ ...
+
+## Comorbidity
+
+From clustering using social network techniques, we observed groupings of Adverse Events similar to what we would have under a heirachical drug term dictionary like MedDra. Although this was a simple case where  we only considered one drug and ignored probable confounding factors like demographic data or concomitant medications, the results were very plausible.
+
+The next step would be to classify the preferred terms under a heirachical drug dictionary, so we could focus on the Adverse Events that were "out of place". That would also be useful in identifying unnexpected relationships that are difficult to detect in a clinical setting (eg, multiple concomitant drugs).
+
+
+A very interesting extension of the comorbidity analysis would be to work on the **bipartite graph**. There we have two sets of nodes:
+
+1. Patients
+2. Adverse Events
+
+Edges between patients and adverse events occur, if a patient is marked with an adverse events. This graph has the advantage of containing all the informations needed to calculate cooccurence probabilities: 
+
++ The degree, i.e. the number of outgoing edges, of an AE node $A$, $d(A)$, corresponds to the number of times $A$ has occured
++ The number of length two paths between two AE nodes $A$ and $B$ $n(A,B)$ corresponds to the number of cooccurences of $A$ and $B$
++ Thus the cooccurence probability of $A$ and $B$ is $p(A\vert B) = n(A, B) / d(B)$
+
+This is actually very strongly related to the concept of **association rule mining** on the graph, which could lead to similiar results.
+
+
+Other interesting analyses could be similar to recommender systems for use by a physician: a recommender system can be thought of as a bipartitge graph. That is, given a list of medications that the patient is on, and by specifying also which AEs the patient alread has observed through user-user collaborative filtering, we could suggest what are the most likely adverse events based on the ones a patient already has. "Recommending an AE" in this case would correspond to suggesting diagnostic tests (in terms of graphs, this corresponds to link prediction).

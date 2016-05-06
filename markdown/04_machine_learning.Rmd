@@ -1,7 +1,6 @@
 # Predicting adverse events
 
 In this section, we train a machine learning with the goal of being able to predict adverse events from tweets. In a second step, we apply this machine learning to recent twitter data. 
-
 The question we ask here is the following:
 
 > If we train a model for predicting adverse drug reaction from Twitter data generated in 2013, are the results still valid nowadays?
@@ -10,20 +9,20 @@ This question is of critical importance to the research program initiated by the
 
 A more refined version of the question above is:
 
-> Are the quantitative measures "precision", "recall", "F-score" and "auc" when the model is evaluated on recent data significantly lower than on the validation set used in the original studies?
-
-A quantitative way of evaluating this question is to train several models on the older dataset and compare the various scores when evaluated on new data.
+> Is the quantitative measure "auc" when the model is evaluated on recent data significantly lower than on the validation set used in the original studies?
 
 ## Data
 
 The dataset was prepared in the Data Cleaning section. Here, we combine the various datasets and split into a training and validation set:
 
-+ The dataset with detailed annotation comes split into a training and a test set. We use this splitting.
-+ The binary annotated dataset is split into a training (75%) and cross-validation (25%) set
++ The dataset from [Nikfarjam et al] comes split into a training and a test set. We use this splitting.
++ The binary annotated dataset from [Abeed Sarker and Graciela Gonzalez] is split into a training (75%) and cross-validation (25%) set
 
-The reason for actually splitting the dataset at this stage and not just performing repeated cross validation is that we will train **several models** on the training data and then [use the scores of these models as **inputs** to a new machine learning model](http://www.stat.berkeley.edu/~ledell/docs/dlab_ensembles.pdf). So, in order to perform proper cross validation we should repeat this entire procedure several times.
+The reason for actually splitting the dataset at this stage and not just performing repeated cross validation is that we will train **several models** on the training data and then [use the scores of these models as **inputs** to a new machine learning model](http://www.stat.berkeley.edu/~ledell/docs/dlab_ensembles.pdf). 
 
-```{r 03_read_data, warning = FALSE}
+Actually, to perform proper cross validation we should repeat this entire procedure several times.
+
+```{r 04_read_data, warning = FALSE}
 tidy_data <- function() {
     # Prepares two tidy datasets: training set and test set
     #
@@ -55,7 +54,7 @@ tidy_data <- function() {
                   binary_data %>% slice(binary_train_ind)
                   ) %>% 
         select(tweet_id, user_id, stemmed, positive, 
-               negative, hashtag, URL, is_AE) %>% 
+               negative, hashtag, URL, drug, is_AE) %>% 
         distinct(tweet_id)
     
     test_data <- 
@@ -63,57 +62,15 @@ tidy_data <- function() {
                   binary_data %>% slice(-binary_train_ind)
                   )  %>% 
         select(tweet_id, user_id, stemmed, positive, 
-               negative, hashtag, URL, is_AE)
+               negative, hashtag, URL, drug, is_AE)
     
+    # Convert to factor
     train_data$is_AE %<>% as.factor
     test_data$is_AE %<>% as.factor
-        
-    # Remove drugs from text
-    drugs <-
-        read_lines("../data/download_tweets/drug_names.txt", skip = 6) %>% 
-        stemDocument()
-    drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
     
-    # Remove hashtag symbol
-    train_data$hashtag %<>% str_replace_all("#", "")
-    test_data$hashtag %<>% str_replace_all("#", "")
-    
-    # Change hashtags
-    train_data$hashtag %<>% str_to_lower() %>% stemDocument()
-    test_data$hashtag %<>% str_to_lower() %>% stemDocument()
-    
-    train_data$hashtag <- plyr::revalue(train_data$hashtag, c("character(0)" = NA))
-    test_data$hashtag <- plyr::revalue(test_data$hashtag, c("character(0)" = NA))
-    
-     # Extract drug
-    train_data$drug <- 
-        str_c(str_extract_all(train_data$stemmed, drug_regex),
-              str_extract_all(train_data$hashtag, drug_regex)) %>% 
-        str_replace_all("character\\(0\\)", "")
-    test_data$drug <- 
-        str_c(str_extract_all(test_data$stemmed, drug_regex),
-              str_extract_all(test_data$hashtag, drug_regex)) %>% 
-        str_replace_all("character\\(0\\)", "")
-    
-    # Remove drug from tweet and hashtag
-    train_data$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
-    test_data$stemmed %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
-    
-    train_data$hashtag %<>% 
-        str_replace_all(drug_regex, "") %>% 
-        str_replace_all('", ', "") %>% 
-        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
-        str_replace_all('\\"', " ") %>% 
-        ifelse(. == "", NA, .)
-    
-    test_data$hashtag %<>% 
-        str_replace_all(drug_regex, "") %>% 
-        str_replace_all('", ', "") %>% 
-        str_replace_all('c\\("', "") %>% str_replace_all('"\\)', "") %>%
-        str_replace_all('\\"', " ") %>% 
-        ifelse(. == "", NA, .)
-    
+    # Distinct tweet texts to avoid overfitting
     train_data %<>% distinct(stemmed)
+    test_data %<>% distinct(stemmed)
     
     list(train = train_data, test = test_data)
 }
@@ -132,8 +89,8 @@ positive         | Positive sentiments
 negative         | Negative sentiments
 hastag           | character of hashtags
 URL              | does the tweet contain a URLS
+drug             | drug names
 is_AE            | Is the tweet related to an adverse event
-drug             | names of drugs in tweet
 
 
 ## Exploratory data analysis
@@ -142,7 +99,7 @@ Let us first do exploratory data analysis on the tweets.
 
 The first interesting question we have is how **balanced** the dataset is: what is the proportion of adverse event related tweets?
 
-```{r 03_explore_data_imbalance}
+```{r 04_explore_data_imbalance}
 data[[1]] %$%
     table(is_AE) %>% 
     pander
@@ -150,12 +107,12 @@ data[[1]] %$%
 
 So there is quite a big imbalance: most tweets containing one of the drug names are not related to an adverse event.
 
-One very popular method for this is to use **wordclouds**. We first produce two wordclouds: one (in black) with tweets not related to an AE and one (in green) related to adverse events. We see that there are interesting differences between the two wordclouds.
+One very popular method for EDA in text mining is to use **wordclouds**. We first produce two wordclouds: one (in black) with tweets not related to an AE and one (in green) related to adverse events. We see that there are interesting differences between the two wordclouds.
 
-+ The right one contains many more "negative" words and words that are obviously related to not feeling good
-+ The left wordcloud contains many neutral words, but also many negative words. These negative words, however are not related to an adverse event (consider, e.g. the phrase "depression hurts cymbalta can help")
++ The right one contains many more "negative" words and words that are obviously related to not feeling well
++ The left wordcloud contains many neutral words, but also many negative words. These negative words, however are not related to an adverse event (consider, e.g. the tweet "depression hurts cymbalta can help")
 
-```{r 03_wordcloud_overall, warning = FALSE}
+```{r 04_wordcloud_overall, warning = FALSE}
 par(mfrow = c(1, 2))
 wordcloud(data[["train"]] %>% filter(is_AE == "No") %$% stemmed, 
           min.freq = 20,
@@ -170,7 +127,9 @@ wordcloud(data[["train"]] %>% filter(is_AE == "Yes") %$% stemmed,
           )
 ```
 
-```{r 03_word_counts}
+Next, we show the 30 most frequent words, both for tweets related to ADRs and tweets not related to ADRs.
+
+```{r 04_word_counts}
 data[[1]] %>% 
     unnest_tokens(word, stemmed) %>% 
     anti_join(stop_words, by = "word") %>% 
@@ -184,7 +143,7 @@ data[[1]] %>%
     ylab("Count")
 ```
 
-```{r 03_word_counts_comparions}
+```{r 04_word_counts_comparions}
 data[[1]] %>% 
     unnest_tokens(word, stemmed) %>% 
     anti_join(stop_words, by = "word") %>%
@@ -200,11 +159,11 @@ data[[1]] %>%
     ylab("Count")
 ```
 
-We see quite a big difference in sentiments between tweets corresponding to adverse events and those not corresponding to adverse events:
+Next, we take the `sentiments` data from the `tidytext` package to do sentiment analysis (we add these sentiments in addition to the ones mentioned in the data cleaning section, because they give a more refined picture of sentiments, and not only positive and negative). We see quite a big difference in sentiments between tweets corresponding to adverse events and those not corresponding to adverse events:
 
 + *Trust* is much lower in AE tweets
-+ *Negative* is much lower in AE tweets
-+ *Positive* sentiments occur with higher frequency in non-AE tweets
++ *Negative* is much higher in AE tweets
++ *Positive* sentiments occur with lower frequency in AE tweets
 
 ```{r 04_sentiments}
 data[[1]] %>% 
@@ -235,22 +194,11 @@ data[[1]] %>%
                        labels = c("No", "Yes"))
 ```
 
+## First model: vector space model
 
-```{r 04_ngrams}
-data[[1]] %>% 
-    unnest_tokens(word, stemmed, token = "regex", "[a-z]{3}") %>% 
-    count(tweet_id, is_AE) %>% 
-    ggplot(aes(x = n, color = is_AE)) +
-    geom_density() +
-    xlab("Number of words per tweet") +
-    scale_color_manual(values = c("Blue", "Red"),
-                       name = "AE",
-                       labels = c("No", "Yes"))
-```
+We first train a model using the well known vector space model. In this model, the features correspond to **word count** (or other similarly constructed features).
 
-
-## Modeling
-## Documenttermmatrix
+### Document term matrx
 
 The first step consists in preparing the **document term matrix** (DTM). This is a matrix whose columns corresponds to features of the text. 
 
@@ -262,7 +210,7 @@ The first step consists in preparing the **document term matrix** (DTM). This is
   
 We chose *Term Frequency* here to build the feature vectors. The reason is simple: the other approaches were tried, but using cross validation, Tf performed best.
 
-```{r 03_create document matrix}
+```{r 04_create document matrix}
 doc_matrix <- create_matrix(c(data[["train"]]$stemmed, 
                               data[["test"]]$stemmed),
                             language = "english",
@@ -276,11 +224,11 @@ doc_matrix <- create_matrix(c(data[["train"]]$stemmed,
                             weighting = tm::weightTf)
 ```
 
-## Container
+### Container
 
-Now that we have a DTM, we could use it directly as a feature matrix and train a model using, e.g. the `caret` package. The package `RTextTools`, however, has a very convenient datastructure allowing us to put all important data into one **container**. In the folowing code chunk, we put the tweets and the outcome in the container, specifying which data are training data and which data are test data. The option `virgin = FALSE` specifies that we have full information about the outcomes on the test data.
+Now that we have a DTM, we could use it directly as a feature matrix and train a model using, e.g. the `caret` package. The package `RTextTools`, however, has a very convenient datastructure allowing us to put all important data into one **container**. The main advantage is that we can keep using sparse matrices as opposed to e.g. the `tidytext` package. In the folowing code chunk, we put the tweets and the outcome in the container, specifying which data are training data and which data are test data. The option `virgin = FALSE` specifies that we have full information about the outcomes on the test data.
 
-```{r 03_create contained}
+```{r 04_create container}
 container <- 
     create_container(doc_matrix, 
                      c(data[["train"]]$is_AE, data[["test"]]$is_AE),
@@ -289,7 +237,7 @@ container <-
                      virgin = FALSE)
 ```
 
-## Model training
+### Model training
 
 Using the container described above, we can directly train models. Here, we train four different models (training the other models is quite slow and does not significantly improve the performance) using the standard parameters:
 
@@ -298,7 +246,7 @@ Using the container described above, we can directly train models. Here, we trai
 + SVM: regularized support vector machine
 + TREE: decision tree
 
-```{r}
+```{r 04_train_models}
 fit_models <-
     train_models(container,
                  c("MAXENT", "GLMNET", "SVM", "TREE"),
@@ -309,7 +257,7 @@ fit_models <-
 
 The `RTextTools` package also allows us to make predictions quite easily. The following code chunk produces the results (i.e. predicted probability and predicted label) for each of the four models on the test set:
 
-```{r}
+```{r 04_make_predictions}
 preds <- classify_models(container, fit_models)
 ```
 
@@ -317,7 +265,7 @@ preds <- classify_models(container, fit_models)
 
 The next step is to evaluate the quality of the models. We start with AUC:
 
-```{r}
+```{r 04_plot_auc_mutltiple_models}
 par(mfrow = c(2, 2))
 preds %$% roc(data[["test"]]$is_AE, MAXENTROPY_PROB) %>% plot
 preds %$% roc(data[["test"]]$is_AE, GLMNET_PROB) %>% plot
@@ -329,29 +277,81 @@ We see that the regularized logistic regression performs best with quite a high 
 
 Next, the `RTextTools` package allows us to extract important other measures as well quite easily using the `create_analytics` command. This gives us the precision, recall and f-score for each of the models (recall that the f-score is a weighted average of the precision and the recall).
 
-Also it automatically creates an **ensemble summary**. This is a useful statistics about the combined performance of all four models. The line corresponding to `n >= 2` means the following:
+Also it automatically creates an **ensemble summary**. This is a useful statistics about the combined performance of all four models. The line corresponding to, e.g. `n >= 2` means the following:
 
 + Coverage tells us on how many percent of the documents two ore more models agree.
 + The recall value corresponds to the recall statistics when restricted to those documents.
 
-```{r}
+```{r 04_make_analytics}
 analytics <- create_analytics(container, preds)
-```
-
-```{r}
 summary(analytics)
 ```
 
-```{r}
-create_ensembleSummary(analytics@document_summary)
+From this, it seems quite plausible that stacking these models can make sense.
+
+## Other inputs
+
+One possibility to add additional features to the models, would be to train a second model and use the result of this model as input to a **stacked model**. This ansatz was tried, but it did not lead to improvement in predictive performance.
+
+The "right" way would actually be to simply column bind these new features to the bag of words matrix. This can be done, but it should also be done using sparse matrices, otherwise, we have to reduce the dimension of the bag of words matrix (i.e. use fewert words as features). This is why we did not use the `tidytext` package here (it was tried, but the performance is worse if the number of terms is restricted).
+
+Here, we just outline how a second model can be trained: we do basic preprocessing. Here, we compute the sentiments by using the dataset from the `tidytext` package.
+
+```{r 04_train_other_model}
+preprocess_second <- function(my_data) {
+    sentiments_tweets <- 
+        my_data %>% 
+        unnest_tokens(word, stemmed) %>% 
+        left_join(sentiments %>% mutate(word = stemDocument(word)),
+                   by = "word") %>% 
+        count(tweet_id, sentiment) %>% 
+        mutate(sentiment = str_c("sentiment_", sentiment)) %>% 
+        filter(!is.na(sentiment)) %>% 
+        spread(sentiment, n, fill = 0)
+    
+    res <- left_join(my_data %>% select(tweet_id), 
+                     sentiments_tweets,
+                     by = "tweet_id")
+    
+    res[is.na(res)] <- 0
+    
+    left_join(my_data, res, by = "tweet_id") %>% 
+        mutate(tweet_length = str_length(stemmed))
+    
+}
+
+train_2nd <- preprocess_second(data[[1]]) 
+cv_2nd <- preprocess_second(data[[2]])
 ```
 
+Then we use the sentiments, the `URL` and the `tweet_length` as predictors.
+
+```{r 04_train_seconde}
+fit_2nd <- train(is_AE ~ .,
+                 data = train_2nd %>% select(starts_with("sentiment"), 
+                                             tweet_length,
+                                             is_AE),
+                 trControl = trainControl(method = "cv",
+                                          number = 5,
+                                          p = 0.75),
+                 method = "rf")
+
+par(mfrow = c(1, 1))
+preds$model_two <- predict(fit_2nd, newdata = cv_2nd, type = "prob")[, 2]
+fit_2nd
+varImp(fit_2nd)
+pROC::roc(cv_2nd$is_AE, preds$model_two) %>% plot
+```
+
+As we saw in the exploratory part of the analysis, `tweet_length` is a good predictor, as well as the positive and negative sentiments.
+
+The area under curve is actually quite good for a model with so few features (just think what we did in terms of dimension reduction: we reduced from roughly 8000 dimensions to roughly 10 dimensions with relatively little reduction in predictive performance!)
 
 ## Aggregating predictions:
 
-The next step is to aggregate the predictions from different models into a final model.
+The next step is to aggregate the predictions from different models into a final model. We use the outputs from the previous models as inputs and train a random forest.
 
-```{r}
+```{r 04_aggregate_predictions}
 preds$results <- data[["test"]]$is_AE
 tr_control <- trainControl(method = "cv",
                            number = 10,
@@ -360,7 +360,8 @@ tr_control <- trainControl(method = "cv",
 
 tune_grid <- expand.grid(mtry = c(1, 2, 3, 4))
 
-fit_rf<- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
+fit_rf <- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB +
+                    TREE_PROB + model_two,
                data = preds,
                method = "rf",
                trControl = tr_control,
@@ -371,48 +372,38 @@ fit_rf<- train(results ~ MAXENTROPY_PROB + GLMNET_PROB + SVM_PROB + TREE_PROB,
 
 We look at the results:
 
-```{r}
+```{r 04_summarize_aggregated}
 fit_rf
 varImp(fit_rf)
 ```
 
-
-The area under curve is around 85%. 
+The area under curve is around 85%, which is quite high.
 
 # Recent data
 
-The next step consists in checking whether we can reproduce these results with recently collected twitter data.
+The next step consists in checking whether we can reproduce these results with recently collected twitter data. We decided to focus on the bag of words model.
 
-```{r}
-parse_new_tweets <- function() {
-    # Prepares new tweets into a form that is suitable for being fed
-    # into the classifiers
-    #
-    # Args: None
-    #
-    # Returns: data frame
-    load("../data/download_tweets/datacollection.RData")
-    tweets_text <- map_chr(tweets, ~.$text)
-    
-    # Remove drugs from text
-    drugs <- read_lines("../data/download_tweets/drug_names.txt", skip = 6)
-    drug_regex <- drugs %>% str_c(collapse = "|") %>% str_c("(", ., ")")
-    
-    tweets_text %<>% str_to_lower %>%  str_replace_all(drug_regex, "")
+In order for the following code chunk to work, this [hack](https://groups.google.com/forum/embed/#!topic/rtexttools-help/Drqr3Z897Mk) has to be performed.
 
-    tweets_text
-}
+We plot the receiver-operating characteristic for the new tweets.
 
-new_tweets <- parse_new_tweets()
-```
+```{r 04_analyse_new_tweets}
 
-In order for the following code chunk to work, this [hack](https://groups.google.com/forum/embed/#!topic/rtexttools-help/Drqr3Z897Mk) has to be performed. Furthermore, we have to change the encoding to UTF-8.
-
-```{r}
+source("../r/clean_tweets.R")
+source("../r/make_drug_list.R")
+source("../r/make_slang_lookup.R")
 source("../r/helper_functions/create_matrix_fixed.R")
-n_new_tweets <- 200
+
+cleaned_tweet <- 
+    read.xlsx("../data/download_tweets/tweets_recent_annotated.xlsx",
+              sheetIndex = 1) %>% 
+    select(tweet_id, tweet_text, is_AE) %>% 
+    clean_tweets(make_drug_list(), make_slang_lookup())
+
+
+source("../r/helper_functions/create_matrix_fixed.R")
 new_tweets_dtm <- 
-    create_matrix(new_tweets %>% head(n = n_new_tweets),
+    create_matrix(cleaned_tweet$stemmed,
                   originalMatrix = doc_matrix,
                   language = "english",
                   removeNumbers = TRUE,
@@ -423,27 +414,62 @@ new_tweets_dtm <-
                   ngramLength = 1,
                   minDocFreq = 1,
                   weighting = tm::weightTf)
-```
 
-
-```{r}
 new_container <- create_container(new_tweets_dtm,
-                                  labels = c(data[[1]]$is_AE, data[[2]]$is_AE),
+                                  labels = c(data[[1]]$is_AE, data[[2]]$is_AE,
+                                             cleaned_tweet$is_AE),
                                   trainSize = NULL,
-                                  testSize = 1:n_new_tweets,
-                                  virgin = TRUE
-                                  )
-```
+                                  testSize = 1:nrow(cleaned_tweet),
+                                  virgin = FALSE
+)
 
-```{r}
 preds_new <- classify_models(new_container, fit_models)
-preds_new_final <- predict(fit_rf, preds_new, type = "prob")
+
+
+# Sentiment model
+cleaned_tweet_two <- cleaned_tweet %>% preprocess_second
+
+# Add sentiment variables not in data frame
+all_sentiments <-
+    sentiments %$%
+    sentiment %>%
+    keep(~!is.na(.)) %>% 
+    unique %>% 
+    map_chr(~str_c("sentiment_", .))
+
+sentiments_not_present <- 
+    keep(all_sentiments, ~(!. %in% colnames(cleaned_tweet_two)))
+
+cleaned_tweet_two[, sentiments_not_present] <- 0
+
+# Predict second model
+preds_new$model_two <- 
+    predict(fit_2nd, cleaned_tweet_two, type = "prob")[, 2]
+
+analytics <- create_analytics(new_container, preds_new)
+print(summary(analytics))
+
+par(mfrow = c(1, 2))
+preds_new %$% pROC::roc(cleaned_tweet$is_AE, GLMNET_PROB) %>% plot
+preds_new %$% pROC::roc(cleaned_tweet$is_AE, SVM_PROB) %>% plot
+
+par(mfrow = c(1, 1))
+preds_new_final <- predict(fit_rf, preds_new, type = "prob")[, 2]
+pROC::roc(cleaned_tweet$is_AE, preds_new_final) %>% 
+    plot()
 ```
 
-Now we show the ten tweets for which the model predicts the highest probability of having an AE:
+We see that the result is quite a bit worse, but still much better than random. In particular, the support vector machine had a huge drop in performace.
 
-```{r}
-order(preds_new_final[, 2], decreasing = TRUE) %>%
-    head(n = 30) %>% 
-    map_chr(~new_tweets[.])
+A very likely reason is that our way of manually annotating tweets is different from the researchers in [here](http://diego.asu.edu/Publications/ADRMine.html) and [here](http://diego.asu.edu/downloads/twitter_annotated_corpus/): they had meetings with experts that went very carefully over all tweets. On the other hand, it is not even clear how good our area under curve as annotators would be.
+
+## Save models
+
+```{r 04_save_models}
+save(fit_models, file = "../data/models/fit_models.RData")
+save(fit_rf, file = "../data/models/stacked_rf.RData")
+save(doc_matrix, file = "../data/models/doc_matrix.RData")
+save(data, file = "../data/models/train_data.RData")
+save(fit_2nd, file = "../data/models/sentiment_model.RData")
 ```
+

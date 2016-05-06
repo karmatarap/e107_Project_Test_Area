@@ -22,7 +22,7 @@ For data confidentiality reasons, the researchers had not made the individual tw
 
 The download of the dataset is not executed by default.
 
-```{r 02_download_data, include = FALSE}
+```{r 02_download_data, eval = FALSE}
 # Download dataset; not executed by default
 system("python ../data/download_tweets/download_tweets.py ../data/download_tweets/train_tweet_ids.tsv ../data/download_tweets/full_train_tweet_ids.tsv")
 system("python ../data/download_tweets/download_tweets.py ../data/download_tweets/test_tweet_ids.tsv ../data/download_tweets/full_test_tweet_ids.tsv")
@@ -31,7 +31,7 @@ system("python ../data/download_tweets/download_tweets.py ../data/download_tweet
 
 ## Script for collection new data
 
-In the following, we download tweets containing the drug names listed below. **We should add here when the actual data collection was performed**.
+In the following, we download tweets containing the drug names listed below. The data collection was performed on April 21.
 
 ```{r 02_collect_new_tweets, eval = FALSE}
 setup_twitter_oauth("consumer_key", "consumer_secret", 
@@ -133,3 +133,26 @@ for(i in 1:length(drugs)) {
 
 save(tweets, file = "../data/download_tweets/datacollection.RData")
 ```
+
+To be able to manually annotate some of the new tweets, we converted them into tabular form: a data frame having two columns:
+
++ tweet_id
++ tweet_text
+
+Furthermore, we saved a sample of 400 tweets as an Excel file for easier annotation.
+
+```{r 02_save_new_data_excel, eval = FALSE}
+set.seed(123)
+parse_new_tweets <- function(tweets) {
+    tweets_text <- tweets %>% map_chr(~.$text)
+    tweets_id <- tweets %>% map_chr(~.$id)
+    
+    data_frame(tweet_id = tweets_id,
+               tweet_text = tweets_text)
+}
+
+write.xlsx(parse_new_tweets(tweets) %>% sample_n(400),
+           file = "../data/download_tweets/tweets_for_annotation.xlsx")
+```
+
+Due to problems with encoding, we had to erase 5 tweets from the Excel file leaving us with 395 tweets for manual annotation.
