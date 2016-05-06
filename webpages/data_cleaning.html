@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Theme Made By www.w3schools.com - No Copyright -->
+  <title>Adverse Event Mining From Twitter</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+  <link href="http://fonts.googleapis.com/css?family=Lato" rel="stylesheet" type="text/css">
+  <link href="http://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet" type="text/css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+  <style>
+  body {
+      font: 400 15px/1.8 Lato, sans-serif;
+      color: #777;
+  }
+  h3, h4 {
+      margin: 10px 0 30px 0;
+      letter-spacing: 10px;      
+      font-size: 20px;
+      color: #111;
+  }
+  .container {
+      padding: 80px 120px;
+  }
+  .person {
+      border: 10px solid transparent;
+      margin-bottom: 25px;
+      width: 80%;
+      height: 80%;
+      opacity: 0.7;
+  }
+  .person:hover {
+      border-color: #f1f1f1;
+  }
+  .carousel-inner img {
+      -webkit-filter: grayscale(90%);
+      filter: grayscale(90%); /* make all photos black and white */ 
+      width: 100%; /* Set width to 100% */
+      margin: auto;
+  }
+  .carousel-caption h3 {
+      color: #fff !important;
+  }
+  @media (max-width: 600px) {
+    .carousel-caption {
+      display: none; /* Hide the carousel text when the screen is less than 600 pixels wide */
+    }
+  }
+  .bg-1 {
+      background: #2d2d30;
+      color: #bdbdbd;
+  }
+  .bg-1 h3 {color: #fff;}
+  .bg-1 p {font-style: italic;}
+
+  .thumbnail p {
+      margin-top: 15px;
+      color: #555;
+  }
+
+  .nav-tabs li a {
+      color: #777;
+  }
+
+  .navbar {
+      font-family: Montserrat, sans-serif;
+      margin-bottom: 0;
+      background-color: #2d2d30;
+      border: 0;
+      font-size: 11px !important;
+      letter-spacing: 4px;
+      opacity: 0.9;
+  }
+  .navbar li a, .navbar .navbar-brand { 
+      color: #d5d5d5 !important;
+  }
+  .navbar-nav li a:hover {
+      color: #fff !important;
+  }
+  .navbar-nav li.active a {
+      color: #fff !important;
+      background-color: #29292c !important;
+  }
+  .navbar-default .navbar-toggle {
+      border-color: transparent;
+  }
+  .open .dropdown-toggle {
+      color: #fff;
+      background-color: #555 !important;
+  }
+  .dropdown-menu li a {
+      color: #000 !important;
+  }
+  .dropdown-menu li a:hover {
+      background-color: red !important;
+  }
+  footer {
+      background-color: #2d2d30;
+      color: #f5f5f5;
+      padding: 32px;
+  }
+  footer a {
+      color: #f5f5f5;
+  }
+  footer a:hover {
+      color: #777;
+      text-decoration: none;
+  }  
+  .form-control {
+      border-radius: 0;
+  }
+  textarea {
+      resize: none;
+  }
+  .small-title {
+    font-weight:bold;
+    font-size:16px;
+  }
+  .nolink {
+      color:#777;
+      display:block;
+      font-size:20px;
+  }
+  </style>
+</head>
+<body id="myPage" data-spy="scroll" data-target=".navbar" data-offset="50">
+
+<nav class="navbar navbar-default navbar-fixed-top">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>                        
+      </button>
+    </div>
+    <div class="collapse navbar-collapse" id="myNavbar">
+        <ul class="nav navbar-nav navbar-right">
+            <li><a href="../index.html">HOME</a></li>
+            <li><a href="demo.html">DEMO</a></li>
+            <li><a href="data_collection.html">DATA COLLECTION</a></li>
+            <li><a href="data_cleaning.html">DATA CLEANING</a></li>
+            <li><a href="machine_learning.html">MACHINE LEARNING</a></li>
+            <li><a href="comorbidity.html">COMORBIDITY</a></li>
+            <li><a href="conclusions.html">CONCLUSION</a></li>
+        </ul>
+    </div>
+  </div>
+</nav>
+
+<div id="myCarousel" class="carousel slide" data-ride="carousel">
+    <!-- Indicators -->
+    <ol class="carousel-indicators">
+      <li data-target="#myCarousel" data-slide-to="0" class="active"></li>
+      <li data-target="#myCarousel" data-slide-to="1"></li>
+      <li data-target="#myCarousel" data-slide-to="2"></li>
+    </ol>
+
+    <!-- Wrapper for slides -->
+    <div class="carousel-inner" role="listbox">
+      <div class="item active">
+        <img alt="New York" width="1200" height="700">
+        <div class="carousel-caption">
+        </div>
+      </div>
+
+      <div class="item">
+        <img alt="Chicago" width="1200" height="700">
+        <div class="carousel-caption">
+        </div>
+      </div>
+
+      <div class="item">
+        <img alt="Los Angeles" width="1200" height="700">
+        <div class="carousel-caption">
+        </div>
+      </div>
+    </div>
+
+    <!-- Left and right controls -->
+    <a class="left carousel-control" href="#myCarousel" role="button" data-slide="prev">
+      <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
+      <span class="sr-only">Previous</span>
+    </a>
+    <a class="right carousel-control" href="#myCarousel" role="button" data-slide="next">
+      <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
+      <span class="sr-only">Next</span>
+    </a>
+</div>
+
+<div id="home" class="container text-center">
+  <h1> Data cleaning</h1>
+</div>
+
+
+<!-- Container (The motivation Section) -->
+<div class="container">
+    <h2>Read the data</h2>
+    <p>In the following, we define a function that reads the corpus from [Nikfarjam et al]: for each tweet it contains detailed information about the adverse event.</p>
+    <p>The steps consists of</p>
+    <ol style="list-style-type: decimal">
+        <li>Parse the annotation file and label the columns</li>
+        <li>Read the dataset obtained from executing the Python script mentioned in the previous section:</li>
+        <li>Read the Adverse Drug reaction lexicon</li>
+        <li>combine all results</li>
+    </ol>
+    <pre class="r"><code>#' Parse downloaded annotated data
+    #'
+    #' @description Parses the data from the DIEGO labs. Depending on the argument
+    #' it reads in the training or test data. It joins the tweets with the
+    #' annotations. Empty annotations means no adverse reaction.
+    #'
+    #' @param type = c(&quot;train&quot;, &quot;test&quot;)
+    #'
+    #' @return data frame
+    #'
+    #' @examples parse_diego_data(&quot;train&quot;)
+    #' @import dplyr, magrittr, readr, stringr
+
+    parse_diego_data &lt;- function(type) {
+    # Load data
+    annotation_file &lt;-
+    ifelse(type == &quot;train&quot;,
+    &quot;../data/download_tweets/train_tweet_annotations.tsv&quot;,
+    ifelse(type == &quot;test&quot;,
+    &quot;../data/download_tweets/test_tweet_annotations.tsv&quot;,
+    stop(&quot;type should be either 'train' or 'test'&quot;
+    ))
+    )
+
+    tweets_file &lt;-
+    ifelse(type == &quot;train&quot;,
+    &quot;../data/download_tweets/full_train_tweet_ids.tsv&quot;,
+    ifelse(type == &quot;test&quot;,
+    &quot;../data/download_tweets/full_test_tweet_ids.tsv&quot;,
+    stop(&quot;type should be either 'train' or 'test'&quot;))
+    )
+
+    # Read annotations and rename columns
+    annotations &lt;-
+    read_tsv(annotation_file,
+    col_names = FALSE,
+    col_types = c(&quot;ciicccc&quot;)
+    ) %&gt;%
+    rename(text_id = X1,
+    start_offset = X2,
+    end_offset = X3,
+    semantic_type = X4,
+    annotated_text = X5,
+    related_drug = X6,
+    target_drug = X7
+    )
+
+    # Parse tweets
+    tweets &lt;-
+    read_lines(tweets_file) %&gt;%
+    str_split(., &quot;\t&quot;) %&gt;%
+    as.data.frame() %&gt;%
+    as.matrix() %&gt;%
+    t %&gt;%
+    as.data.frame() %&gt;%
+    `rownames&lt;-`(., NULL) %&gt;%
+    rename(tweet_id = V1,
+    user_id = V2,
+    text_id = V3,
+    tweet_text = V4
+    )
+
+    # Read in the ADR lexicon and rename
+    adr_lexicon &lt;- read_tsv(&quot;../data/download_tweets/ADR_lexicon.tsv&quot;,
+    skip = 21,
+    col_names = FALSE) %&gt;%
+    rename(concept_id = X1,
+    concept_name = X2,
+    source = X3)
+
+    # Join tweets and annotations
+    result &lt;-
+    suppressWarnings(left_join(tweets, annotations, by = &quot;text_id&quot;))
+
+    # Join result with ADR lexicon
+    result &lt;- left_join(result,
+    adr_lexicon,
+    by = c(&quot;annotated_text&quot; = &quot;concept_name&quot;))
+
+    # Select distinct tweets
+    result &lt;- result %&gt;% distinct(tweet_id)
+
+    result[ ] &lt;- lapply(result, as.character)
+
+    result
+    }</code></pre>
+    <p>Next, we define a similar function that reads in the data from [Abeed Sarker and Graciela Gonzalez]. Reading this dataset is easier and just consists of reading the dataset obtained from executing the Python script.</p>
+    <pre class="r"><code>#' Parse binary data
+    #'
+    #' @description Parses the data with binary annotation¨
+    #'
+    #' @return data frame
+    #'
+    #' @examples parse_binary_data()
+    #' @import dplyr, purrr, readr, stringr
+
+    parse_binary_data &lt;- function(type) {
+    # Load data
+    tweets_file &lt;- &quot;../data/download_tweets/binary_tweets_downloaded.tsv&quot;
+
+    # Parse tweets: bad character &quot;\r&quot; has to be removed before the string
+    # can be split
+    individual_tweets &lt;-
+    read_file(tweets_file) %&gt;%
+    str_replace_all(&quot;\r&quot;, &quot;&quot;) %&gt;%
+    str_split(., &quot;\n&quot;) %&gt;%
+    unlist()
+
+    # Split the tweets and have four output columns
+    # Revalue is_AE column (needed for caret to work with some ML algos)
+    tweets_frame &lt;-
+    individual_tweets %&gt;%
+    str_split_fixed(&quot;\t&quot;, 4) %&gt;%
+    as.data.frame() %&gt;%
+    rename(tweet_id = V1,
+    user_id = V2,
+    is_AE = V3,
+    tweet_text = V4
+    ) %&gt;%
+    filter(is_AE != &quot;&quot;) %&gt;%
+    mutate(is_AE = as.factor(plyr::revalue(is_AE,
+    c(&quot;0&quot; = &quot;No&quot;, &quot;1&quot; = &quot;Yes&quot;))
+    ))
+    tweets_frame[ ] &lt;- lapply(tweets_frame, as.character)
+
+    tweets_frame
+    }</code></pre>
+    <p>Now that we have defined the functions reading in the data, let us take a first look at them to get a feeling.</p>
+    <div id="first-look-at-the-data" class="section level2">
+    <h2>First look at the data</h2>
+<pre class="r"><code># Read in the training data
+    train.data &lt;- parse_diego_data(&quot;train&quot;)
+    test.data &lt;- parse_diego_data(&quot;test&quot;)
+    binary.data &lt;- parse_binary_data()</code></pre>
+    <p>We can see from the tweets that we might want to extract the drug names “humira” to use as a feature in future models. Even though the researchers have annotated the drug names on this dataset, this should help us classify non-annotated tweets. This could serve the puropse of <strong>automatically</strong> creating new training sets:</p>
+    <p>If we want to predict ADRs on new drugs, our trained model should not have the drug name we are interested in included as feature. For the purpose of generating a new training sample, this could, however, be a good strategy, although one has to be careful with bias.</p>
+    <pre class="r"><code>train.data$tweet_text[709] </code></pre>
+    <pre><code>## [1] &quot;Humira is kicking in again which is nice but that also means I'm moving towards my next injection...\&quot;AS\&quot; the joy of joys, still smiling.&quot;</code></pre>
+    <p>Although our sample of tweets, for the most part, were correctly spelt, we still wanted to run it through a spell checker to ensure our models were robust.</p>
+    <pre class="r"><code>train.data$tweet_text[318]</code></pre>
+    <pre><code>## [1] &quot;@any1mouse jus Gt bck myself, hes puT me on citalopram in addition 2 the quetiapine! Im a bit worried as citalopram has made me manic before&quot;</code></pre>
+    <p>We can also see a few examples of internet slang usage. This is hard for a spell checker to correct so we want to investigate if we can clean this up a bit.</p>
+    <pre class="r"><code>train.data$tweet_text[751]</code></pre>
+    <pre><code>## [1] &quot;@evann_lfc yea still a vampire as still on cipro wbu? Xx&quot;</code></pre>
+    <p>A further challenge we see is that there is sometimes repeats of characters to show emphasis. This will need to be corrected also.</p>
+    <pre class="r"><code>train.data$tweet_text[807]</code></pre>
+    <pre><code>## [1] &quot;@kaliruoff ohhh...lmao that's just great. Maybe it was probably seroquel. That stuff knocks you outttttttt haha&quot;</code></pre>
+</div>
+    <div id="drug-names" class="section level2">
+    <h2>Drug names</h2>
+    <p>The drug names were downloaded from <a href="https://www.nlm.nih.gov/research/umls/rxnorm/docs/rxnormfiles.html">here</a>.</p>
+    <p>These are stored as <code>./data/dictionaries/RXNCONSO.RFF</code>.</p>
+    <p>We create a function that makes a list of drugs so we can identify tweets containing a known drug name, as well as ignore them from spell checking. We restrict to brand names (BN) and generics / ingredients (IN)</p>
+<pre class="r"><code>make_drug_list &lt;- function() {
+    # Read drug names
+    rx.conso &lt;- read.delim(file = '../data/dictionaries/RXNCONSO.RRF',
+    sep='|',
+    header = F,
+    stringsAsFactors = F)
+
+    # Column names
+    rx.colstr &lt;- &quot;RXCUI LAT TS LUI STT SUI SPREF RXAUI SAUI SCUI SDUI SAB TTY CODE STR SRL SUPPRESS CVF&quot;
+
+    # Assign column names to data frame
+    names(rx.conso) &lt;- rx.colstr %&gt;%
+    tolower %&gt;%
+    strsplit(split=' ') %&gt;%
+    unlist
+
+    # Subset a list of drug brand names (BN) and generics/ingredient name (IN)
+    # convert to lower for easier lookup
+    drug.list &lt;- rx.conso %&gt;%
+    subset((tty %in% c('BN','IN'))) %&gt;%
+    select(tty, code, str) %&gt;%
+    mutate(str = tolower(str))
+
+    drug.list
+    }</code></pre>
+</div>
+    <div id="slang-words" class="section level2">
+    <h2>Slang words</h2>
+    <p>The idea in this step is to clean slang expression and convert then to proper english as well as possible. This is done before passing the tweets to the spellchecker.</p>
+    <p>Slang words were scraped from <a href="http://www.netlingo.com/acronyms.php">here</a>.</p>
+    <p>Again, we write a function that makes the conversion table:</p>
+<pre class="r"><code>make_slang_lookup &lt;- function() {
+    url &lt;- &quot;http://www.netlingo.com/acronyms.php&quot;
+
+    contents &lt;- read_html(url)
+
+    #write(contents, file = &quot;../data/dictionaries/slang.txt&quot;)
+
+    #contents &lt;- read.table(&quot;../data/dictionaries/slang.txt&quot;)
+
+    #lapply(contents, write, &quot;../data/dictionaries/slang_words&quot;, append=TRUE, ncolumns=1000)
+
+    # Using the chrome selector gadget we identified the following attributes containing the dictionary: .list_box3 li, .list_box3 span
+    words &lt;- contents %&gt;%
+    html_nodes(&quot;.list_box3 span&quot;) %&gt;%
+    html_text() %&gt;% tolower
+
+    descriptions &lt;- contents %&gt;%
+    html_nodes(&quot;.list_box3 li&quot;) %&gt;%
+    html_text() %&gt;% tolower
+
+    slang.lookup &lt;- data.frame(words, descriptions, stringsAsFactors = FALSE)
+
+    # Cleaning out the descriptions, as it contains the slang words also
+    # Also removing slangs that can have multiple interpretations
+    # Remove the null key
+    slang.lookup &lt;- slang.lookup %&gt;%
+    mutate(decode = substring(descriptions,nchar(words)+1)) %&gt;%
+    filter(!grepl(&quot;,|-or-&quot;,descriptions)) %&gt;%
+    filter(words != &quot;&quot;)
+    }</code></pre>
+    <p>Next, we put every together: we add new attributes to the dataset</p>
+    <ul>
+        <li>We extract the <strong>hastags</strong></li>
+        <li>We see whether the tweet text contains a <strong>URL</strong>. This could be related to advertisments</li>
+        <li>Add positive and negative sentiments</li>
+        <li>Stem the text</li>
+        <li>Extract drugs</li>
+    </ul>
+<pre class="r"><code>clean_tweets &lt;- function(train.data, drug.list, slang.lookup) {
+
+    #Loading the emoticon dataset from qdapDictionaries. This converts emoticons to their english text counterpart
+    data(&quot;emoticon&quot;)
+
+    train.data.new &lt;- train.data %&gt;%
+    mutate(
+    #ae_term       = substr(tweet_text,start_offset,end_offset),      # Extract ae terms (only applicable here)
+    hashtag       = str_extract_all(tweet_text,&quot;#[a-zA-Z]+&quot;),        # Collect all hashtags
+    URL           = grepl(&quot;http[[:alnum:][:punct:]]*&quot;, tweet_text)   # Boolean to indicate if tweet contains UR
+
+    ) %&gt;%
+    arrange(tweet_id) %&gt;%
+    mutate(rown = row_number())
+
+
+    # Reshaping the data
+    # Transposing to get one word per row using unnest without removing punctuation. This allows us to preserve emoticons
+    train.data.long &lt;- train.data.new %&gt;%
+    select(tweet_id, tweet_text) %&gt;%
+    mutate(words = strsplit(as.character(tolower(tweet_text)),&quot; &quot;)) %&gt;%
+    unnest() %&gt;%
+    group_by(tweet_id) %&gt;%
+    mutate(wordn = row_number()) %&gt;%
+    ungroup %&gt;%
+    left_join(emoticon, by=c(&quot;words&quot;=&quot;emoticon&quot;))             # Add the meaning for the emoticons from the emoticon dictionary
+
+
+    train.data.aug &lt;- train.data.long %&gt;%
+    mutate(
+    is_hashtag = grepl(&quot;#[a-zA-Z]+&quot;,words),                 # attribute to show if its a hashtag
+    is_URL     = grepl(&quot;http[[:alnum:][:punct:]]*&quot;,words),  # is it a url
+    words      = gsub(&quot;([:lower:])\\1+&quot;,&quot;\\1\\1&quot;, words),   # Contract word length
+    words      = gsub(&quot;[[:punct:]]&quot;, &quot;&quot;, words)             # Remove punctuation
+    ) %&gt;%
+    filter(words != &quot;&quot;) %&gt;%
+    left_join(mutate(drug.list, drug_name=str), by=c(&quot;words&quot;=&quot;str&quot;)) %&gt;%
+    left_join(slang.lookup, by=&quot;words&quot;)
+
+
+
+    # this part runs really slow, be warned
+    train.data.clean &lt;- train.data.aug %&gt;%
+    rowwise() %&gt;%
+    mutate(
+    words = ifelse((is.na(drug_name) &amp;&amp; !is_hashtag &amp;&amp; !is_URL),
+    ifelse (hunspell_check(words),
+    words,
+    ifelse(is.na(decode),
+    hunspell_suggest(words)[[1]][1],
+    decode
+    )
+    ),
+    words
+    )
+    )
+
+    # aggregating the entire tweets back to one line per tweet
+    train.data.wide &lt;- train.data.clean%&gt;%
+    group_by(tweet_id) %&gt;%
+    summarise(cleaned_tweet = paste(words, collapse = &quot; &quot;))
+
+
+    # Creating a corpus to create the term document matrix
+    tweet.corpus &lt;- Corpus(VectorSource(train.data.wide$cleaned_tweet))
+
+    # Stem the words
+    tweet.corpus &lt;- tm_map(tweet.corpus, stemDocument)
+
+    # Create the term document matrix, removing punctuation and stopwords (common words that carry little meaning)
+    tdm &lt;- TermDocumentMatrix(tweet.corpus,
+    control = list(
+    removePunctuation = TRUE,
+    stopwords = TRUE))
+
+
+    # Generating a sentiment score to be used as a feature in the predictive model
+    pos.score &lt;- tm_term_score(tdm, terms_in_General_Inquirer_categories(&quot;Positiv&quot;)) # this lists each document with number below
+
+    neg.score &lt;- tm_term_score(tdm,terms_in_General_Inquirer_categories(&quot;Negativ&quot;))
+
+
+    cleaned_tweets &lt;- data.frame(stemmed = sapply(tweet.corpus, as.character),
+    positive = pos.score,
+    negative = neg.score,
+    stringsAsFactors = FALSE)
+
+    # Sentiment scoring
+    cleaned_tweets &lt;- cleaned_tweets %&gt;%
+    mutate(rown = row_number(),
+    positivity = (positive - negative) / (positive + negative + 1))
+
+    # merge this onto the original tweet dataset that other features for the predictive model
+    cleaned_tweets &lt;-
+    cleaned_tweets %&gt;%
+    inner_join(train.data.new, by=&quot;rown&quot;)
+
+    #Remove drugs from text
+    drugs &lt;-
+    read_lines(&quot;../data/download_tweets/drug_names.txt&quot;, skip = 6) %&gt;%
+    stemDocument()
+    drug_regex &lt;- drugs %&gt;% str_c(collapse = &quot;|&quot;) %&gt;% str_c(&quot;(&quot;, ., &quot;)&quot;)
+
+    # Remove hashtag symbol
+    cleaned_tweets$hashtag %&lt;&gt;% str_replace_all(&quot;#&quot;, &quot;&quot;)
+
+    # Change hashtags
+    cleaned_tweets$hashtag %&lt;&gt;% str_to_lower() %&gt;% stemDocument()
+    cleaned_tweets$hashtag &lt;- plyr::revalue(cleaned_tweets$hashtag, c(&quot;character(0)&quot; = NA))
+
+    # Extract drug
+    cleaned_tweets$drug &lt;-
+    str_c(str_extract_all(cleaned_tweets$stemmed, drug_regex),
+    str_extract_all(cleaned_tweets$hashtag, drug_regex)) %&gt;%
+    str_replace_all(&quot;character\\(0\\)&quot;, &quot;&quot;)
+
+    # Remove drug from tweet and hashtag
+    cleaned_tweets$stemmed %&lt;&gt;% str_to_lower %&gt;%  str_replace_all(drug_regex, &quot;&quot;)
+
+    cleaned_tweets$hashtag %&lt;&gt;%
+    str_replace_all(drug_regex, &quot;&quot;) %&gt;%
+    str_replace_all('&quot;, ', &quot;&quot;) %&gt;%
+    str_replace_all('c\\(&quot;', &quot;&quot;) %&gt;% str_replace_all('&quot;\\)', &quot;&quot;) %&gt;%
+    str_replace_all('\\&quot;', &quot; &quot;) %&gt;%
+    ifelse(. == &quot;&quot;, NA, .)
+
+    cleaned_tweets
+    }
+
+    cleaned_train &lt;- clean_tweets(train.data, make_drug_list(), make_slang_lookup())
+    cleaned_test &lt;- clean_tweets(test.data, make_drug_list(), make_slang_lookup())
+    cleaned_binary &lt;- clean_tweets(binary.data, make_drug_list(), make_slang_lookup())
+
+    save(cleaned_train,file=&quot;../data/cleaned_train.Rda&quot;)
+    save(cleaned_test,file=&quot;../data/cleaned_test.Rda&quot;)
+    save(cleaned_binary,file=&quot;../data/cleaned_binary.Rda&quot;)</code></pre>
+</div>
+</div>
+
+
+<div class="container">
+    <h3 class="text-center">CONTINUE</h3>
+    <a class="small-title text-center nolink" href="machine_learning.html">Machine Learning</a>
+</div>
+
+<!-- Footer -->
+<footer class="text-center ">
+  <a class="up-arrow" href="#myPage" data-toggle="tooltip" title="TO TOP">
+    <span class="glyphicon glyphicon-chevron-up"></span>
+  </a><br><br>
+</footer>
+
+</body>
+</html>
