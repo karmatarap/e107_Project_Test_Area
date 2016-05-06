@@ -291,7 +291,7 @@ From this, it seems quite plausible that stacking these models can make sense.
 
 ## Other inputs
 
-One possibility to add additional features to the models, would be to train a second model and use the result of this model as input to a **stacked model**. This ansatz was tried, but it did not lead to improvement in predictive performance.
+We trained a second model and used the output of this to build a stacked model.
 
 The "right" way would actually be to simply column bind these new features to the bag of words matrix. This can be done, but it should also be done using sparse matrices, otherwise, we have to reduce the dimension of the bag of words matrix (i.e. use fewert words as features). This is why we did not use the `tidytext` package here (it was tried, but the performance is worse if the number of terms is restricted).
 
