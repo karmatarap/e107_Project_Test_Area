@@ -21,6 +21,9 @@
       font-size: 20px;
       color: #111;
   }
+  .head-container {
+      padding:80px 120px 0 120px;
+  }
   .container {
       padding: 80px 120px;
   }
@@ -48,15 +51,11 @@
       color: #bdbdbd;
   }
   .bg-1 h3 {color: #fff;}
-  .bg-1 p {font-style: italic;}
-
-
   .nolink {
       color:#777;
       display:block;
-      font-size:16px;
+      font-size:20px;
   }
-
   .nav-tabs li a {
       color: #777;
   }
@@ -83,10 +82,6 @@
   .navbar-default .navbar-toggle {
       border-color: transparent;
   }
-  .open .dropdown-toggle {
-      color: #fff;
-      background-color: #555 !important;
-  }
   .dropdown-menu li a {
       color: #000 !important;
   }
@@ -104,17 +99,11 @@
   footer a:hover {
       color: #777;
       text-decoration: none;
-  }  
-  .form-control {
-      border-radius: 0;
   }
   textarea {
       resize: none;
   }
-  .small-title {
-    font-weight:bold;
-    font-size:16px;
-  }
+
   </style>
 </head>
 <body id="myPage" data-spy="scroll" data-target=".navbar" data-offset="50">
@@ -141,7 +130,7 @@
   </div>
 </nav>
 
-<div id="home" class="container text-center">
+<div id="home" class="head-container text-center">
   <h1>Machine Learning</h1>
 </div>
 
@@ -173,26 +162,28 @@
     <img src="images/longer.jpg" style="max-width:540px;"/>
 </div>
 
-<div class="container">
-    <h2>Machine Learning</h2>
-    <p>The main question that we want to answer in this part concerns the stability of models with respect to time:</p>
-    <p><b>If we train a model for predicting adverse drug reaction from Twitter data generated in 2013, are the results still valid nowadays?</b></p>
-    <br>
-    <p>
-        In order to answer that question we trained two models on the 2013 data. One of them was based on the term frequency matrix and the other was mainly based on sentiment analysis. The performance of the model whose features consisted of the sentiment count associated with the tweets was slightly worse, but in a comparable range. Considering, however, the impressive reduction in dimension (roughly 8000 features vs roughly 10 features), this model performed impressively well.
-    </p>
-    <p>
-        As next step, the models were stacked which led to an additional improvement of the area under curve to roughly 85%. Also, sensitivity, specificity and F-score were at the same order as in the literature.
-    </p>
-    <p>
-        Then, the stacked model (which was the best performing model) was evaluated on the newly collected data. This dataset was manually annotated by us. We observed a significant drop-off in performance to around 70%. This drop in predictive performance can have multiple reasons:</p>
-    <ul>
-        <li>Our annotation was not consistent with the annotation of tweets in the literature
-        </li>
-        <li>The usage of twitter has changed, e.g. more adds, change in slang, more use of emoijs, etc.
-        </li>
-    </ul>
-    <img src="images/comparison.jpg" style="max-width:650px;"/>
+<div class="bg-1">
+    <div class="container">
+        <h2>Machine Learning</h2>
+        <p>The main question that we want to answer in this part concerns the stability of models with respect to time:</p>
+        <p><b>If we train a model for predicting adverse drug reaction from Twitter data generated in 2013, are the results still valid nowadays?</b></p>
+        <br>
+        <p>
+            In order to answer that question we trained two models on the 2013 data. One of them was based on the term frequency matrix and the other was mainly based on sentiment analysis. The performance of the model whose features consisted of the sentiment count associated with the tweets was slightly worse, but in a comparable range. Considering, however, the impressive reduction in dimension (roughly 8000 features vs roughly 10 features), this model performed impressively well.
+        </p>
+        <p>
+            As a next step, the models were stacked which led to an additional improvement of the area under curve to roughly 85%. Also, sensitivity, specificity and F-score were at the same order as in the literature.
+        </p>
+        <p>
+            Then, the stacked model (which was the best performing model) was evaluated on the newly collected data. This dataset was manually annotated by us. We observed a significant drop-off in performance to around 70%. This drop in predictive performance can have multiple reasons:</p>
+        <ul>
+            <li>Our annotation was not consistent with the annotation of tweets in the literature
+            </li>
+            <li>The usage of twitter has changed, e.g. more ads, change in slang, more use of emoijs, etc.
+            </li>
+        </ul>
+        <img src="images/comparison.jpg" style="max-width:650px;"/>
+    </div>
 </div>
 
 <div class="container">

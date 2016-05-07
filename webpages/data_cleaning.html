@@ -21,8 +21,15 @@
       font-size: 20px;
       color: #111;
   }
+  .header-container {
+      padding:80px 120px 0 120px;
+  }
   .container {
       padding: 80px 120px;
+  }
+  .container img {
+      display:block;
+      margin:auto;
   }
   .carousel-inner img {
       -webkit-filter: grayscale(90%);
@@ -96,16 +103,9 @@
   footer a:hover {
       color: #777;
       text-decoration: none;
-  }  
-  .form-control {
-      border-radius: 0;
   }
   textarea {
       resize: none;
-  }
-  .small-title {
-    font-weight:bold;
-    font-size:16px;
   }
   .nolink {
       color:#777;
@@ -138,13 +138,13 @@
   </div>
 </nav>
 
-<div id="home" class="container text-center">
+<div class="header-container text-center">
   <h1> Data Collection and Cleaning</h1>
 </div>
 
 <div class="container">
     <h2>Data Collection</h2>
-    <p>We downloaded Twitter Corpus from <a href="http://diego.asu.edu/Publications/ADRMine.html">here</a> and <a href="http://diego.asu.edu/downloads/twitter_annotated_corpus/">here</a>.</p>
+    <p>We downloaded Twitter Corpuses from <a href="http://diego.asu.edu/Publications/ADRMine.html">here</a> and <a href="http://diego.asu.edu/downloads/twitter_annotated_corpus/">here</a>.</p>
     <p>We also wrote scripts to collect tweets containing drug names with TwitteR</p>
 </div>
 
@@ -152,15 +152,15 @@
     <div class="container">
         <h2>Data Cleaning</h2>
         <p>As a first step after collecting data, we dealt with cleaning it and focused on the following aspects:</p>
-        <p style="display:list-item;">Slang</p>
+        <ul><li>Slang</li></ul>
         <img src="images/slang.jpg" style="max-height:100px;margin-bottom:10px;"/>
         <p>Using an internet slang dictionary scraped from netlingo we translated internet slang into english words. </p>
         <br>
-        <p style="display:list-item;">Misspellings</p>
+        <ul><li>Misspellings</li></ul>
         <img src="images/misspellings.jpg" style="max-height:100px;margin-bottom:10px;"/>
         <p>We then ran the tweets through a spell checker.</p>
         <br>
-        <p style="display:list-item;">Removing hashtags & URLs</p>
+        <ul><li>Removing hashtags & URLs</li></ul>
         <img src="images/hashtags.jpg" style="max-width:600px;margin-bottom:10px;"/>
         <p>We extracted # and URLand added sentiment after loading the emoticon dataset from qdapDictionaries.</p>
     </div>
@@ -170,7 +170,7 @@
 
 <div class="container">
     <h3 class="text-center">CONTINUE</h3>
-    <a class="small-title text-center nolink" href="machine_learning.html">Machine Learning</a>
+    <a class="text-center nolink" href="machine_learning.html">Machine Learning</a>
 </div>
 
 <!-- Footer -->
