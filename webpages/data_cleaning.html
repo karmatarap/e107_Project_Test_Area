@@ -46,10 +46,10 @@
     }
   }
   .bg-1 {
-      background: #2d2d30;
-      color: #bdbdbd;
+      background: #e3e3e3;
+      color: #555;
   }
-  .bg-1 h3 {color: #fff;}
+  .bg-1 h3 {color: #000;}
 
   .thumbnail p {
       margin-top: 15px;
@@ -82,20 +82,11 @@
   .navbar-default .navbar-toggle {
       border-color: transparent;
   }
-  .open .dropdown-toggle {
-      color: #fff;
-      background-color: #555 !important;
-  }
-  .dropdown-menu li a {
-      color: #000 !important;
-  }
-  .dropdown-menu li a:hover {
-      background-color: red !important;
-  }
   footer {
       background-color: #2d2d30;
       color: #f5f5f5;
-      padding: 32px;
+      padding: 20px;
+      opacity: 0.9;
   }
   footer a {
       color: #f5f5f5;
@@ -106,6 +97,9 @@
   }
   textarea {
       resize: none;
+  }
+  p b {
+      font-size:16px;
   }
   .nolink {
       color:#777;
@@ -142,29 +136,29 @@
   <h1> Data Collection and Cleaning</h1>
 </div>
 
-<div class="container">
-    <h2>Data Collection</h2>
-    <p>We downloaded Twitter Corpuses from <a href="http://diego.asu.edu/Publications/ADRMine.html">here</a> and <a href="http://diego.asu.edu/downloads/twitter_annotated_corpus/">here</a>.</p>
-    <p>We also wrote scripts to collect tweets containing drug names with TwitteR</p>
-</div>
+    <div class="container">
+        <h2>Data Collection</h2>
+        <p>We downloaded Twitter Corpuses from <a href="http://diego.asu.edu/Publications/ADRMine.html">here</a> and <a href="http://diego.asu.edu/downloads/twitter_annotated_corpus/">here</a>.</p>
+        <p>We also wrote scripts to collect tweets containing drug names with TwitteR</p>
+    </div>
 
-<div class="bg-1">
     <div class="container">
         <h2>Data Cleaning</h2>
         <p>As a first step after collecting data, we dealt with cleaning it and focused on the following aspects:</p>
-        <ul><li>Slang</li></ul>
+        <p><b>[Slang]</b></p>
         <img src="images/slang.jpg" style="max-height:100px;margin-bottom:10px;"/>
         <p>Using an internet slang dictionary scraped from netlingo we translated internet slang into english words. </p>
         <br>
-        <ul><li>Misspellings</li></ul>
+        <p><b>[Misspellings]</b></p>
         <img src="images/misspellings.jpg" style="max-height:100px;margin-bottom:10px;"/>
         <p>We then ran the tweets through a spell checker.</p>
         <br>
-        <ul><li>Removing hashtags & URLs</li></ul>
-        <img src="images/hashtags.jpg" style="max-width:600px;margin-bottom:10px;"/>
-        <p>We extracted # and URLand added sentiment after loading the emoticon dataset from qdapDictionaries.</p>
+        <p><b>[Removing hashtags & URLs]</b></p>
+        <img src="images/drugscom.jpg" style="max-width:400px;margin-bottom:10px;"/>
+        <p>We removed hashtags and URLs</p>
+        <img src="images/hashtagtweet.jpg" style="max-width: 600px;"/>
+        <p>and added sentiment to the tweets after loading the emoticons dataset from qdapDictionaries</p>
     </div>
-</div>
 
 
 

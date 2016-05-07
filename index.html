@@ -15,33 +15,15 @@
       font: 400 15px/1.8 Lato, sans-serif;
       color: #777;
   }
-  h3, h4 {
-      margin: 10px 0 30px 0;
-      letter-spacing: 10px;      
-      font-size: 20px;
-      color: #111;
-  }
   .container {
       padding: 80px 120px;
   }
-  .person {
-      border: 10px solid transparent;
-      margin-bottom: 25px;
-      width: 80%;
-      height: 80%;
-      opacity: 0.7;
-  }
-  .person:hover {
-      border-color: #f1f1f1;
-  }
-  .carousel-inner img {
-      -webkit-filter: grayscale(90%);
-      filter: grayscale(90%); /* make all photos black and white */ 
-      width: 100%; /* Set width to 100% */
-      margin: auto;
-  }
   .carousel-caption h3 {
       color: #fff !important;
+  }
+  .container img {
+      display:block;
+      margin:auto;
   }
   @media (max-width: 600px) {
     .carousel-caption {
@@ -49,49 +31,10 @@
     }
   }
   .bg-1 {
-      background: #2d2d30;
-      color: #bdbdbd;
-  }
-  .bg-1 h3 {color: #fff;}
-  .bg-1 p {font-style: italic;}
-  .list-group-item:first-child {
-      border-top-right-radius: 0;
-      border-top-left-radius: 0;
-  }
-  .list-group-item:last-child {
-      border-bottom-right-radius: 0;
-      border-bottom-left-radius: 0;
-  }
-  .thumbnail {
-      padding: 0 0 15px 0;
-      border: none;
-      border-radius: 0;
-  }
-  .thumbnail p {
-      margin-top: 15px;
+      background: #e3e3e3;
       color: #555;
   }
-  .btn {
-      padding: 10px 20px;
-      background-color: #333;
-      color: #f1f1f1;
-      border-radius: 0;
-      transition: .2s;
-  }
-  .btn:hover, .btn:focus {
-      border: 1px solid #333;
-      background-color: #fff;
-      color: #000;
-  }
-  .modal-header, h4, .close {
-      background-color: #333;
-      color: #fff !important;
-      text-align: center;
-      font-size: 30px;
-  }
-  .modal-header, .modal-body {
-      padding: 40px 50px;
-  }
+  .bg-1 h3 {color: #000;}
   .nav-tabs li a {
       color: #777;
   }
@@ -117,10 +60,6 @@
   .navbar-default .navbar-toggle {
       border-color: transparent;
   }
-  .open .dropdown-toggle {
-      color: #fff;
-      background-color: #555 !important;
-  }
   .dropdown-menu li a {
       color: #000 !important;
   }
@@ -130,7 +69,8 @@
   footer {
       background-color: #2d2d30;
       color: #f5f5f5;
-      padding: 32px;
+      padding: 20px;
+      opacity:0.9;
   }
   footer a {
       color: #f5f5f5;
@@ -138,9 +78,6 @@
   footer a:hover {
       color: #777;
       text-decoration: none;
-  }  
-  .form-control {
-      border-radius: 0;
   }
   textarea {
       resize: none;
@@ -149,16 +86,7 @@
     font-weight:bold;
     font-size:16px;
   }
-  .demo-container {
-    padding: 0 120px;
-    height:600px;
-  }
-  .demo-frame {
-    border: 0;
-    height: 600px;
-    width: 800px;
-  }
-  .intro {
+  .container.intro {
     padding:0 120px;
   }
   .nolink {
@@ -166,11 +94,6 @@
     display:block;
     font-size:20px;
   }
-
-  .navbar-brand.logo {
-    padding:10px;
-  }
-
   </style>
 </head>
 <body id="myPage" data-spy="scroll" data-target=".navbar" data-offset="50">
@@ -207,17 +130,17 @@
   </div>
 </div>
 
-<div class="intro text-center">
+<div class="container intro">
   <h3>Who are we</h3>
   <div>Julia Gyorffy, Alexander Noll, Tianhui Shi, Karma Tarap </div>
 </div>
 
-<div class="container text-center">
+<div class="container">
   <h3>Motivation and Background</h3>
   <p>In our project we were interested in analyzing the possibilities of detecting adverse drug reactions through social media mining. </p>
   <p>Adverse Drug Reactions (ADRs) = harmful effects caused by the intake of a medical drug. According to the FDA Adverse Effects Reporting system, the number of hospitalizations and even deaths caused by ADRs is ever increasing and has reached over one million cases in the US as of 2014. </p>
   <img src="webpages/images/fda-chart.png" style="max-width:600px"/>
-  <p>Source: FAERS, fda.gov, as of Nov. 2015. </p>
+  <p style="text-align: center;">Source: FAERS, fda.gov, as of Nov. 2015. </p>
   <br>
   <p>
   Thus, the detection of these events plays a significant role for improving human health. The assessment and detection of adverse reactions for prescription drugs starts at the clinical trial level and continues after market release through national reporting tools that allow manufacturers and the public to report on ADRs. However, due to the limitations of clinical trials and the voluntary nature of public reporting tools, the actual detection of the adverse reactions is incomplete and not timely.
@@ -225,7 +148,7 @@
   </p>
   <p>Example:</p>
   <img src="webpages/images/intro-chart-2.jpg" style="width:400px;"/>
-  <p>Source: Deloitte, 2015</p>
+  <p style="text-align: center;">Source: Deloitte, 2015</p>
   <br>
   <p>
   However, social media is unstructured user generated data that also brings about challenges for algorithm applications. A few of the challenges are: misspellings or colloquialisms, commercial information instead of personal experience, several terms used that do not correspond to lexicon terms.
@@ -234,8 +157,8 @@
 
 <!-- Container (goal Section) -->
 <div class="bg-1">
-  <div class="container text-center">
-    <h3 class="text-center">Project Goals</h3>
+  <div class="container">
+    <h3>Project Goals</h3>
     <div>
     <p>In this project we wanted to approach these challenges and investigate in how far social media data can help in ADRs detection. </p>
     <p>We chose to focus on twitter and set the following goals:</p>

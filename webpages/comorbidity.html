@@ -45,23 +45,10 @@
     }
   }
   .bg-1 {
-      background: #2d2d30;
-      color: #bdbdbd;
+      background: #e3e3e3;
+      color: #555;
   }
-  .bg-1 h3 {color: #fff;}
-  .list-group-item:first-child {
-      border-top-right-radius: 0;
-      border-top-left-radius: 0;
-  }
-  .list-group-item:last-child {
-      border-bottom-right-radius: 0;
-      border-bottom-left-radius: 0;
-  }
-  .thumbnail {
-      padding: 0 0 15px 0;
-      border: none;
-      border-radius: 0;
-  }
+  .bg-1 h3 {color: #000;}
   .header-container {
       padding:80px 120px 0 120px;
   }
@@ -95,10 +82,6 @@
   .navbar-default .navbar-toggle {
       border-color: transparent;
   }
-  .open .dropdown-toggle {
-      color: #fff;
-      background-color: #555 !important;
-  }
   .dropdown-menu li a {
       color: #000 !important;
   }
@@ -108,7 +91,8 @@
   footer {
       background-color: #2d2d30;
       color: #f5f5f5;
-      padding: 32px;
+      padding: 20px;
+      opacity:0.9;
   }
   footer a {
       color: #f5f5f5;
@@ -116,9 +100,6 @@
   footer a:hover {
       color: #777;
       text-decoration: none;
-  }  
-  .form-control {
-      border-radius: 0;
   }
   textarea {
       resize: none;
@@ -166,23 +147,32 @@
         However we simply did not have enough data points available.
         Thankfully, the FDA provides quarterly downloadable files of Adverse Events <a href="http://www.fda.gov/Drugs/GuidanceComplianceRegulatoryInformation/Surveillance/AdverseDrugEffects/">here</a>. So we decided to use this as our data source, and to concentrate on suspected AEs related to the CNS stimulant, Vyvanse. </p>
     <img src="images/freq-word.jpg" style="max-width:800px;"/>
-    <h2>Building the network graph</h2>
-    <p>We created a graph object, where the nodes of the graph were Adverse Events, and the edges denoted a co-occurrence of two Adverse Events. The weights of the edges is the probability of that edge (1/number of edges) for that patient.</p>
-    <img src="images/graph.jpg" style="max-width:650px;"/>
-    <p>We can see from our preliminary plot that we have one large cluster of AEs, and a few very small clusters as well as a few isolates that consist of only one edge.</p>
-
+    </div>
+<div class="bg-1">
+    <div class="container">
+        <h2>Building the network graph</h2>
+        <p>We created a graph object, where the nodes of the graph were Adverse Events, and the edges denoted a co-occurrence of two Adverse Events. The weights of the edges is the probability of that edge (1/number of edges) for that patient.</p>
+        <img src="images/graph.jpg" style="max-width:650px;"/>
+        <p>We can see from our preliminary plot that we have one large cluster of AEs, and a few very small clusters as well as a few isolates that consist of only one edge.</p>
+    </div>
+</div>
+<div class="container">
     <h2>Cluster Analysis</h2>
     <img src="images/como-cluster.jpg" style="max-width:800px;"/>
     <p>By isolating the smaller clusters, we can start seeing some interesting groupings. In the clusters above, we can see they have separated into maternal and feotal adverse events.
     </p>
     <p>The linked AEs of Rhesus incompatibility and infusion is likely due to an infusion during delivery.
     </p>
+    </div>
+<div class="bg-1">
+    <div class="container">
         <h2>Community detection</h2>
         <p>Having explored the smaller cluster, we are still left with a strongly connected, large cluster. In order to help visualise it, we will split the cluster into communities using a random walk. </p>
         <img src="images/community.jpg" style="max-width:650px;">
         <p>In the above graphs, the size of the node represents the frequency of that AE and the edge weight is given by the sum of probabilities of the co-occurrence of the two connected AEs.</p>
         <p>For example, we can see that a decreased appetite and somnolence are quite common on vyvanse and having a decreased appetite if you have somnolence is more likely than experiencing feeling jittery.</p>
         <p>The downside of this type of analysis, where we are only looking at co-occurrence is that we can’t tell the direction of action. That is, we can see that somnolence is linked with feeling jittery, but we don’t have evidence of a causal link (even though it’s probably unlikely that feeling jittery would cause you to feel tired).</p>
+    </div>
 </div>
 
 

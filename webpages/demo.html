@@ -38,33 +38,11 @@
       display: none; /* Hide the carousel text when the screen is less than 600 pixels wide */
     }
   }
-  .bg-1 h3 {color: #fff;}
-  .list-group-item:first-child {
-      border-top-right-radius: 0;
-      border-top-left-radius: 0;
-  }
-  .list-group-item:last-child {
-      border-bottom-right-radius: 0;
-      border-bottom-left-radius: 0;
-  }
-  .thumbnail {
-      padding: 0 0 15px 0;
-      border: none;
-      border-radius: 0;
-  }
-  .thumbnail p {
-      margin-top: 15px;
+  .bg-1 {
+      background: #e3e3e3;
       color: #555;
   }
-  .modal-header, h4, .close {
-      background-color: #333;
-      color: #fff !important;
-      text-align: center;
-      font-size: 30px;
-  }
-  .modal-header, .modal-body {
-      padding: 40px 50px;
-  }
+  .bg-1 h3 {color: #000;}
   .nav-tabs li a {
       color: #777;
   }
@@ -90,10 +68,6 @@
   .navbar-default .navbar-toggle {
       border-color: transparent;
   }
-  .open .dropdown-toggle {
-      color: #fff;
-      background-color: #555 !important;
-  }
   .dropdown-menu li a {
       color: #000 !important;
   }
@@ -103,7 +77,8 @@
   footer {
       background-color: #2d2d30;
       color: #f5f5f5;
-      padding: 32px;
+      padding: 20px;
+      opacity: 0.9;
   }
   footer a {
       color: #f5f5f5;
@@ -154,13 +129,14 @@
   <h1>Demo</h1>
 </div>
 
+
 <div class="demo-container text-center">
     <p>A tool showing the clusters from comorbidity research</p>
     <iframe class="demo-frame" src="http://ec2-54-165-152-237.compute-1.amazonaws.com:3838/como/"></iframe>
 </div>
 
 <div class="demo-container text-center">
-    <p>Enter your own tweet and we will tell you the likelyhood that the tweet contains adverse-event</p>
+    <p>A tool telling you the likelyhood that your tweet contains adverse events</p>
     <iframe class="embed-responsive-item demo-frame" src="https://nollal.shinyapps.io/Predict_AE/"></iframe>
 </div>
 
